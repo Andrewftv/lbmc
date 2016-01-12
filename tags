@@ -1,0 +1,421 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+AR	envir.mak	/^AR:=$(TOOLCHAIN)\/bin\/$(HOST)-ar$/;"	m
+AR	envir.mak	/^AR:=ar$/;"	m
+AUDIO_BUFFERS	inc/decode.h	4;"	d
+CC	envir.mak	/^CC:=$(TOOLCHAIN)\/bin\/$(HOST)-gcc$/;"	m
+CC	envir.mak	/^CC:=gcc$/;"	m
+CFLAGS	config.mak	/^CFLAGS:=-DCONFIG_PC=1 $/;"	m
+CONFIG_PC	config.mak	/^CONFIG_PC=1$/;"	m
+CONFIG_PULSE_AUDIO	config.mak	/^CONFIG_PULSE_AUDIO=1$/;"	m
+CONFIG_SDL2_VIDEO	config.mak	/^CONFIG_SDL2_VIDEO=1$/;"	m
+CONFIG_VIDEO	config.mak	/^CONFIG_VIDEO=1$/;"	m
+CXX	envir.mak	/^CXX:=$(TOOLCHAIN)\/bin\/$(HOST)-g++$/;"	m
+CXX	envir.mak	/^CXX:=gcc$/;"	m
+CXXCP	envir.mak	/^CXXCP:=$(CXX) -E$/;"	m
+CXXFLAGS	envir.mak	/^CXXFLAGS=-std=c++0x$/;"	m
+DBG_A	inc/log.h	33;"	d
+DBG_E	inc/log.h	29;"	d
+DBG_F	inc/log.h	37;"	d
+DBG_I	inc/log.h	21;"	d
+DBG_V	inc/log.h	17;"	d
+DBG_W	inc/log.h	25;"	d
+DEPFLAGS	envir.mak	/^DEPFLAGS=-MM -MP -MT $(DEPFILE).o -MT $(DEPFILE).d$/;"	m
+FFMPEG_LIBS	envir.mak	/^FFMPEG_LIBS = -lavdevice -lavformat -lavfilter -lavcodec -lswresample -lswscale -lavutil$/;"	m
+FLOAT	envir.mak	/^FLOAT=hard$/;"	m
+HOST	envir.mak	/^HOST:=arm-bcm2708hardfp-linux-gnueabi$/;"	m
+IL_AUDIO_RENDER_IN_PORT	inc/ilcore.h	10;"	d
+IL_WAIT_TIMEOUT	utils/ilcore.c	5;"	d	file:
+INCLUDES	envir.mak	/^INCLUDES:=-I$(TOP_DIR)\/inc -I\/usr\/include\/freetype2\/$/;"	m
+INFINITE_WAIT	inc/msleep.h	8;"	d
+LD	envir.mak	/^LD:=$(TOOLCHAIN)\/bin\/$(HOST)-ld$/;"	m
+LD	envir.mak	/^LD:=ld$/;"	m
+LDFLAGS	envir.mak	/^LDFLAGS:=$/;"	m
+LOG_LVL_ALERT	inc/log.h	/^	LOG_LVL_ALERT,$/;"	e	enum:__anon16
+LOG_LVL_ERROR	inc/log.h	/^	LOG_LVL_ERROR,$/;"	e	enum:__anon16
+LOG_LVL_FATAL	inc/log.h	/^	LOG_LVL_FATAL$/;"	e	enum:__anon16
+LOG_LVL_INFO	inc/log.h	/^	LOG_LVL_INFO,$/;"	e	enum:__anon16
+LOG_LVL_VERB	inc/log.h	/^    LOG_LVL_VERB,$/;"	e	enum:__anon16
+LOG_LVL_WARN	inc/log.h	/^	LOG_LVL_WARN,$/;"	e	enum:__anon16
+L_FAILED	inc/errors.h	/^    L_FAILED = -1$/;"	e	enum:__anon15
+L_OK	inc/errors.h	/^    L_OK = 0,$/;"	e	enum:__anon15
+L_STOPPING	inc/errors.h	/^    L_STOPPING = 2,$/;"	e	enum:__anon15
+L_TIMEOUT	inc/errors.h	/^    L_TIMEOUT = 1,$/;"	e	enum:__anon15
+MSLEEP_ERROR	inc/msleep.h	12;"	d
+MSLEEP_INTERRUPT	inc/msleep.h	11;"	d
+MSLEEP_TIMEOUT	inc/msleep.h	10;"	d
+OBJDUMP	envir.mak	/^OBJDUMP:=$(TOOLCHAIN)\/bin\/$(HOST)-objdump$/;"	m
+OBJDUMP	envir.mak	/^OBJDUMP:=objdump$/;"	m
+OBJ_DIR	envir.mak	/^OBJ_DIR=objs$/;"	m
+OBJ_PATH	Makefile	/^OBJ_PATH = $(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+OBJ_PATH	audio/Makefile	/^OBJ_PATH:=.$/;"	m
+OBJ_PATH	audio/player/Makefile	/^OBJ_PATH:=.$/;"	m
+OBJ_PATH	audio/player/pulse/Makefile	/^OBJ_PATH:=$(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+OBJ_PATH	audio/player/raspi/Makefile	/^OBJ_PATH:=$(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+OBJ_PATH	demux/Makefile	/^OBJ_PATH:=$(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+OBJ_PATH	utils/Makefile	/^OBJ_PATH:=$(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+OBJ_PATH	video/Makefile	/^OBJ_PATH:=.$/;"	m
+OBJ_PATH	video/common/Makefile	/^OBJ_PATH:=$(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+OBJ_PATH	video/player/Makefile	/^OBJ_PATH:=.$/;"	m
+OBJ_PATH	video/player/gl/Makefile	/^OBJ_PATH:=$(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+OBJ_PATH	video/player/sdl2/Makefile	/^OBJ_PATH:=$(TOP_DIR)\/$(OBJ_DIR)$/;"	m
+PLAYER_INITED	inc/video_player.h	/^    PLAYER_INITED = 0,$/;"	e	enum:__anon17
+PLAYER_PAUSE	inc/video_player.h	/^    PLAYER_PAUSE$/;"	e	enum:__anon17
+PLAYER_PLAY	inc/video_player.h	/^    PLAYER_PLAY,$/;"	e	enum:__anon17
+PREFIX	envir.mak	/^	PREFIX=@$/;"	m
+PREFIX	envir.mak	/^PREFIX=$/;"	m
+RANLIB	envir.mak	/^RANLIB:=$(TOOLCHAIN)\/bin\/$(HOST)-ranlib$/;"	m
+RANLIB	envir.mak	/^RANLIB:=ranlib$/;"	m
+SAMPLE_PER_BUFFER	demux/demuxing_decoding.c	23;"	d	file:
+SILENT	envir.mak	/^SILENT=1$/;"	m
+SRC	Makefile	/^SRC=main.c$/;"	m
+SRC	audio/Makefile	/^SRC:=$/;"	m
+SRC	audio/player/Makefile	/^SRC:=$/;"	m
+SRC	audio/player/pulse/Makefile	/^SRC:=pulse_player.c$/;"	m
+SRC	audio/player/raspi/Makefile	/^SRC:=raspi_player.c$/;"	m
+SRC	demux/Makefile	/^SRC:=demuxing_decoding.c$/;"	m
+SRC	utils/Makefile	/^SRC:=logs.c timeutils.c queue.c list.c msleep.c$/;"	m
+SRC	video/Makefile	/^SRC:=$/;"	m
+SRC	video/common/Makefile	/^SRC:=ft_text.c video_player.c$/;"	m
+SRC	video/player/Makefile	/^SRC:=$/;"	m
+SRC	video/player/gl/Makefile	/^SRC:=gl_player.c$/;"	m
+SRC	video/player/sdl2/Makefile	/^SRC:=sdl_player.c$/;"	m
+STRIP	envir.mak	/^STRIP:=$(TOOLCHAIN)\/bin\/$(HOST)-strip$/;"	m
+STRIP	envir.mak	/^STRIP:=strip$/;"	m
+SUBDIRS	Makefile	/^SUBDIRS := utils audio demux$/;"	m
+SYSROOT	envir.mak	/^SYSROOT:=$(TOOLCHAIN)\/arm-bcm2708hardfp-linux-gnueabi\/sysroot$/;"	m
+TARGET	Makefile	/^TARGET=lbmc$/;"	m
+TOOLCHAIN	envir.mak	/^TOOLCHAIN:=\/opt\/arm-bcm2708\/arm-bcm2708hardfp-linux-gnueabi$/;"	m
+TOP_DIR	Makefile	/^TOP_DIR=.$/;"	m
+TOP_DIR	audio/Makefile	/^TOP_DIR=..$/;"	m
+TOP_DIR	audio/player/Makefile	/^TOP_DIR=..\/..$/;"	m
+TOP_DIR	audio/player/pulse/Makefile	/^TOP_DIR=..\/..\/..$/;"	m
+TOP_DIR	audio/player/raspi/Makefile	/^TOP_DIR=..\/..\/..$/;"	m
+TOP_DIR	demux/Makefile	/^TOP_DIR=..$/;"	m
+TOP_DIR	utils/Makefile	/^TOP_DIR=..$/;"	m
+TOP_DIR	video/Makefile	/^TOP_DIR=..$/;"	m
+TOP_DIR	video/common/Makefile	/^TOP_DIR=..\/..$/;"	m
+TOP_DIR	video/player/Makefile	/^TOP_DIR=..\/..$/;"	m
+TOP_DIR	video/player/gl/Makefile	/^TOP_DIR=..\/..\/..$/;"	m
+TOP_DIR	video/player/sdl2/Makefile	/^TOP_DIR=..\/..\/..$/;"	m
+VIDEO_BUFFERS	inc/decode.h	5;"	d
+_GNU_SOURCE	demux/demuxing_decoding.c	1;"	d	file:
+__FT_TEXT_H__	inc/ft_text.h	2;"	d
+__ILCORE_H__	inc/ilcore.h	2;"	d
+__LBMC_AUDIO_PLAYER_H__	inc/audio_player.h	2;"	d
+__LBMC_DECODE_H__	inc/decode.h	2;"	d
+__LBMC_ERRORS_H__	inc/errors.h	2;"	d
+__LBMC_LOG_H__	inc/log.h	2;"	d
+__LBMC_VIDEO_PLAYER_H__	inc/video_player.h	2;"	d
+__MSLEEP_H__	inc/msleep.h	2;"	d
+__OMX_QUEUE_H__	inc/queue.h	2;"	d
+__TIME_UTILS_H__	inc/timeutils.h	2;"	d
+__UTILS_LISTS_H__	inc/list.h	2;"	d
+add_head_priv	utils/list.c	/^static void add_head_priv(list_t *ctx, list_node_t *node)$/;"	f	file:
+add_tail_priv	utils/list.c	/^static void add_tail_priv(list_t *ctx, list_node_t *node)$/;"	f	file:
+app_audio_ctx_t	demux/demuxing_decoding.c	/^} app_audio_ctx_t;$/;"	t	typeref:struct:__anon11	file:
+app_data	demux/demuxing_decoding.c	/^    void *app_data;$/;"	m	struct:__anon10	file:
+app_video_ctx_t	demux/demuxing_decoding.c	/^} app_video_ctx_t;$/;"	t	typeref:struct:__anon13	file:
+audio_buffer_t	demux/demuxing_decoding.c	/^} audio_buffer_t;$/;"	t	typeref:struct:__anon10	file:
+audio_ctx	audio/player/pulse/pulse_player.c	/^	demux_ctx_h audio_ctx;$/;"	m	struct:__anon9	file:
+audio_ctx	demux/demuxing_decoding.c	/^	app_audio_ctx_t *audio_ctx;$/;"	m	struct:__anon14	file:
+audio_player_h	inc/audio_player.h	/^typedef void* audio_player_h;$/;"	t
+audio_player_init	audio/player/raspi/raspi_player.c	/^static int audio_player_init(player_ctx_t *ctx)$/;"	f	file:
+audio_player_is_runnung	audio/player/pulse/pulse_player.c	/^int audio_player_is_runnung(audio_player_h h)$/;"	f
+audio_player_is_runnung	audio/player/raspi/raspi_player.c	/^int audio_player_is_runnung(audio_player_h h)$/;"	f
+audio_player_pause	audio/player/pulse/pulse_player.c	/^void audio_player_pause(audio_player_h player_ctx)$/;"	f
+audio_player_pause	audio/player/raspi/raspi_player.c	/^void audio_player_pause(audio_player_h h)$/;"	f
+audio_player_start	audio/player/pulse/pulse_player.c	/^ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h)$/;"	f
+audio_player_start	audio/player/raspi/raspi_player.c	/^ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h)$/;"	f
+audio_player_stop	audio/player/pulse/pulse_player.c	/^void audio_player_stop(audio_player_h player_ctx)$/;"	f
+audio_player_stop	audio/player/raspi/raspi_player.c	/^void audio_player_stop(audio_player_h h)$/;"	f
+audio_player_uninit	audio/player/raspi/raspi_player.c	/^static int audio_player_uninit(player_ctx_t *ctx)$/;"	f	file:
+audio_streams	demux/demuxing_decoding.c	/^    int audio_streams;$/;"	m	struct:__anon11	file:
+av2pa	audio/player/pulse/pulse_player.c	/^static pa_sample_format_t av2pa(enum AVSampleFormat src_fmt)$/;"	f	file:
+base_time	inc/video_player.h	/^	struct timespec base_time;$/;"	m	struct:__anon18	typeref:struct:__anon18::timespec
+buff	demux/demuxing_decoding.c	/^	video_buffer_t buff[VIDEO_BUFFERS];$/;"	m	struct:__anon13	file:
+buff_done	audio/player/raspi/raspi_player.c	/^static int buff_done = 0;$/;"	v	file:
+buffer	demux/demuxing_decoding.c	/^	audio_buffer_t buffer[AUDIO_BUFFERS];$/;"	m	struct:__anon11	file:
+buffer	demux/demuxing_decoding.c	/^	uint8_t *buffer[4];$/;"	m	struct:__anon12	file:
+buffer_done	audio/player/raspi/raspi_player.c	/^    msleep_h buffer_done;$/;"	m	struct:__anon8	file:
+codec	demux/demuxing_decoding.c	/^	AVCodecContext *codec;$/;"	m	struct:__anon13	file:
+codec	demux/demuxing_decoding.c	/^	struct AVCodecContext *codec;$/;"	m	struct:__anon11	typeref:struct:__anon11::AVCodecContext	file:
+cond	utils/msleep.c	/^	pthread_cond_t cond;$/;"	m	struct:__anon4	file:
+corrected_pts	inc/video_player.h	/^	int64_t corrected_pts;$/;"	m	struct:__anon18
+count	utils/list.c	/^    int count;$/;"	m	struct:__anon6	file:
+count	utils/queue.c	/^    int count;$/;"	m	struct:__anon5	file:
+create_shader	video/player/gl/gl_player.c	/^static ret_code_t create_shader(player_ctx_t *ctx)$/;"	f	file:
+curr_play_buff	demux/demuxing_decoding.c	/^	int curr_play_buff;$/;"	m	struct:__anon11	file:
+curr_play_buff	demux/demuxing_decoding.c	/^	int curr_play_buff;$/;"	m	struct:__anon13	file:
+curr_read_buff	demux/demuxing_decoding.c	/^	int curr_read_buff;$/;"	m	struct:__anon11	file:
+curr_read_buff	demux/demuxing_decoding.c	/^	int curr_read_buff;$/;"	m	struct:__anon13	file:
+current_log_level	utils/logs.c	/^static log_dbg_lvl_t current_log_level = LOG_LVL_INFO;$/;"	v	file:
+data	demux/demuxing_decoding.c	/^	uint8_t **data;$/;"	m	struct:__anon10	file:
+data	utils/queue.c	/^	void *data;$/;"	m	struct:omx_node_s	file:
+decode_audio_packet	demux/demuxing_decoding.c	/^static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)$/;"	f	file:
+decode_get_audio_buffer_by_index	demux/demuxing_decoding.c	/^uint8_t *decode_get_audio_buffer_by_index(demux_ctx_h h, int index)$/;"	f
+decode_get_audio_buffer_priv_data	demux/demuxing_decoding.c	/^ret_code_t decode_get_audio_buffer_priv_data(demux_ctx_h h, int index, void **data)$/;"	f
+decode_get_audio_buffers_count	demux/demuxing_decoding.c	/^int decode_get_audio_buffers_count(demux_ctx_h h)$/;"	f
+decode_get_audio_buffs_info	demux/demuxing_decoding.c	/^ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)$/;"	f
+decode_get_channels	demux/demuxing_decoding.c	/^int decode_get_channels(demux_ctx_h h)$/;"	f
+decode_get_next_audio_buffer	demux/demuxing_decoding.c	/^uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, ret_code_t *ret)$/;"	f
+decode_get_next_video_buffer	demux/demuxing_decoding.c	/^uint8_t *decode_get_next_video_buffer(demux_ctx_h h, size_t *size, int64_t *pts, ret_code_t *rc)$/;"	f
+decode_get_pixel_format	demux/demuxing_decoding.c	/^ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt)$/;"	f
+decode_get_sample_format	demux/demuxing_decoding.c	/^enum AVSampleFormat decode_get_sample_format(demux_ctx_h h)$/;"	f
+decode_get_sample_rate	demux/demuxing_decoding.c	/^int decode_get_sample_rate(demux_ctx_h h)$/;"	f
+decode_get_video_buffers_count	demux/demuxing_decoding.c	/^int decode_get_video_buffers_count(demux_ctx_h h)$/;"	f
+decode_init	demux/demuxing_decoding.c	/^ret_code_t decode_init(demux_ctx_h *h, char *src_file)$/;"	f
+decode_is_audio	demux/demuxing_decoding.c	/^int decode_is_audio(demux_ctx_h h)$/;"	f
+decode_is_task_running	demux/demuxing_decoding.c	/^int decode_is_task_running(demux_ctx_h h)$/;"	f
+decode_is_video	demux/demuxing_decoding.c	/^int decode_is_video(demux_ctx_h h)$/;"	f
+decode_next_audio_stream	demux/demuxing_decoding.c	/^ret_code_t decode_next_audio_stream(demux_ctx_h h)$/;"	f
+decode_packet	demux/demuxing_decoding.c	/^static int decode_packet(int *got_frame, int cached, demux_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)$/;"	f	file:
+decode_release_audio_buffer	demux/demuxing_decoding.c	/^void decode_release_audio_buffer(demux_ctx_h h)$/;"	f
+decode_release_video_buffer	demux/demuxing_decoding.c	/^void decode_release_video_buffer(demux_ctx_h h)$/;"	f
+decode_set_audio_buffer_priv_data	demux/demuxing_decoding.c	/^ret_code_t decode_set_audio_buffer_priv_data(demux_ctx_h h, int index, void *data)$/;"	f
+decode_start	demux/demuxing_decoding.c	/^ret_code_t decode_start(demux_ctx_h h)$/;"	f
+decode_stop	demux/demuxing_decoding.c	/^void decode_stop(demux_ctx_h h)$/;"	f
+decode_uninit	demux/demuxing_decoding.c	/^void decode_uninit(demux_ctx_h h)$/;"	f
+decode_video_packet	demux/demuxing_decoding.c	/^static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)$/;"	f	file:
+delete_shader	video/player/gl/gl_player.c	/^static void delete_shader(player_ctx_t *ctx)$/;"	f	file:
+demux_ctx	inc/video_player.h	/^	demux_ctx_h demux_ctx;$/;"	m	struct:__anon18
+demux_ctx_h	inc/decode.h	/^typedef void* demux_ctx_h;$/;"	t
+demux_ctx_t	demux/demuxing_decoding.c	/^} demux_ctx_t;$/;"	t	typeref:struct:__anon14	file:
+demuxer	audio/player/raspi/raspi_player.c	/^    demux_ctx_h demuxer;$/;"	m	struct:__anon8	file:
+destroy_queue	utils/queue.c	/^static void destroy_queue(omx_queue_t *q)$/;"	f	file:
+devode_get_video_size	demux/demuxing_decoding.c	/^int devode_get_video_size(demux_ctx_h hd, int *w, int *h)$/;"	f
+display	video/player/gl/gl_player.c	/^static void display(void)$/;"	f	file:
+draw_frame	inc/video_player.h	/^	ret_code_t (*draw_frame)(video_player_h ctx, uint8_t *buf);$/;"	m	struct:__anon18
+draw_frame_sdl	video/player/sdl2/sdl_player.c	/^static int draw_frame_sdl(video_player_h h, uint8_t *buf)$/;"	f	file:
+drop_packets	demux/demuxing_decoding.c	/^    int drop_packets;$/;"	m	struct:__anon11	file:
+dst_fmt	demux/demuxing_decoding.c	/^	enum AVSampleFormat dst_fmt;$/;"	m	struct:__anon11	typeref:enum:__anon11::AVSampleFormat	file:
+eEvent	inc/ilcore.h	/^	OMX_EVENTTYPE eEvent;$/;"	m	struct:omx_event
+ebo	video/player/gl/gl_player.c	/^	GLuint ebo;$/;"	m	struct:__anon2	file:
+empty_buff	demux/demuxing_decoding.c	/^	msleep_h empty_buff;$/;"	m	struct:__anon11	file:
+empty_buff	demux/demuxing_decoding.c	/^	msleep_h empty_buff;$/;"	m	struct:__anon13	file:
+event_list	utils/ilcore.c	/^    list_h event_list;$/;"	m	struct:__anon7	file:
+event_sdl	video/player/sdl2/sdl_player.c	/^static void event_sdl(player_ctx_t *ctx, SDL_Rect *rect, int *is_min)$/;"	f	file:
+event_sleep	utils/ilcore.c	/^    msleep_h event_sleep;$/;"	m	struct:__anon7	file:
+face	video/common/ft_text.c	/^	FT_Face face;$/;"	m	struct:__anon1	file:
+find_func	inc/list.h	/^typedef int (*find_func)(list_node_t *node, void *user_data);$/;"	t
+find_func_cb	utils/ilcore.c	/^static int find_func_cb(list_node_t *node, void *user_data)$/;"	f	file:
+find_tail_priv	utils/list.c	/^static list_node_t *find_tail_priv(list_t *ctx)$/;"	f	file:
+first_node	utils/queue.c	/^    omx_node_t *first_node;$/;"	m	struct:__anon5	file:
+fmt_ctx	demux/demuxing_decoding.c	/^	struct AVFormatContext *fmt_ctx;$/;"	m	struct:__anon14	typeref:struct:__anon14::AVFormatContext	file:
+frame_count	demux/demuxing_decoding.c	/^	int frame_count;$/;"	m	struct:__anon11	file:
+frame_count	demux/demuxing_decoding.c	/^	int frame_count;$/;"	m	struct:__anon13	file:
+free_buffs	demux/demuxing_decoding.c	/^	int free_buffs;$/;"	m	struct:__anon11	file:
+free_buffs	demux/demuxing_decoding.c	/^	int free_buffs;$/;"	m	struct:__anon13	file:
+fs	video/player/gl/gl_player.c	/^	GLuint fs; \/* Fragment Shader *\/$/;"	m	struct:__anon2	file:
+ft_ctx_t	video/common/ft_text.c	/^} ft_ctx_t;$/;"	t	typeref:struct:__anon1	file:
+ft_done_stroker	video/common/ft_text.c	/^void ft_done_stroker(ft_text_h *h)$/;"	f
+ft_lib	video/common/ft_text.c	/^	FT_Library ft_lib;$/;"	m	struct:__anon1	file:
+ft_lib	video/player/gl/gl_player.c	/^	ft_text_h ft_lib;$/;"	m	struct:__anon2	file:
+ft_load_char	video/common/ft_text.c	/^ret_code_t ft_load_char(ft_text_h *h, char ch)$/;"	f
+ft_load_stroker	video/common/ft_text.c	/^ret_code_t ft_load_stroker(ft_text_h *h, char ch, FT_Bitmap *bitmap)$/;"	f
+ft_text_get_glyph	video/common/ft_text.c	/^FT_GlyphSlot ft_text_get_glyph(ft_text_h *h)$/;"	f
+ft_text_get_size	video/common/ft_text.c	/^ret_code_t ft_text_get_size(ft_text_h *h, int *size)$/;"	f
+ft_text_h	inc/ft_text.h	/^typedef void* ft_text_h;$/;"	t
+ft_text_init	video/common/ft_text.c	/^ret_code_t ft_text_init(ft_text_h *h)$/;"	f
+ft_text_set_size	video/common/ft_text.c	/^ret_code_t ft_text_set_size(ft_text_h *h, int size)$/;"	f
+ft_text_uninit	video/common/ft_text.c	/^void ft_text_uninit(ft_text_h h)$/;"	f
+full_buff	demux/demuxing_decoding.c	/^	msleep_h full_buff;$/;"	m	struct:__anon11	file:
+full_buff	demux/demuxing_decoding.c	/^	msleep_h full_buff;$/;"	m	struct:__anon13	file:
+get_audio_streams_count	demux/demuxing_decoding.c	/^static int get_audio_streams_count(AVFormatContext *fmt)$/;"	f	file:
+getch	main.c	/^int getch()$/;"	f
+gl_draw_frame	video/player/gl/gl_player.c	/^static ret_code_t gl_draw_frame(video_player_h h, uint8_t *buf)$/;"	f	file:
+gl_flush_buffers	video/player/gl/gl_player.c	/^static int gl_flush_buffers(void)$/;"	f	file:
+gl_idle	video/player/gl/gl_player.c	/^static void gl_idle(video_player_h h)$/;"	f	file:
+gl_init	video/player/gl/gl_player.c	/^static ret_code_t gl_init(video_player_h h)$/;"	f	file:
+gl_set_viewport	video/player/gl/gl_player.c	/^static void gl_set_viewport(player_ctx_t *ctx)$/;"	f	file:
+gl_uninit	video/player/gl/gl_player.c	/^static void gl_uninit(video_player_h h)$/;"	f	file:
+glyph	video/common/ft_text.c	/^	FT_Glyph glyph;$/;"	m	struct:__anon1	file:
+handle	utils/ilcore.c	/^    OMX_HANDLETYPE handle;$/;"	m	struct:__anon7	file:
+head	utils/list.c	/^    list_node_t *head;$/;"	m	struct:__anon6	file:
+height	video/player/gl/gl_player.c	/^	int width, height;$/;"	m	struct:__anon2	file:
+height	video/player/sdl2/sdl_player.c	/^	int width, height;$/;"	m	struct:__anon3	file:
+hide_console_cursore	main.c	/^static void hide_console_cursore(void)$/;"	f	file:
+idle	inc/video_player.h	/^	void (*idle)(video_player_h ctx);$/;"	m	struct:__anon18
+il_empty_buffer_done	audio/player/raspi/raspi_player.c	/^static OMX_ERRORTYPE il_empty_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, $/;"	f	file:
+il_event_handler	audio/player/raspi/raspi_player.c	/^static OMX_ERRORTYPE il_event_handler(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent, $/;"	f	file:
+il_fill_buffer_done	audio/player/raspi/raspi_player.c	/^static OMX_ERRORTYPE il_fill_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData,$/;"	f	file:
+ilcore_add_comp_event	utils/ilcore.c	/^ret_code_t ilcore_add_comp_event(ilcore_comp_h h, OMX_EVENTTYPE eEvent, OMX_U32 nData1, OMX_U32 nData2)$/;"	f
+ilcore_comp_ctx_t	utils/ilcore.c	/^} ilcore_comp_ctx_t;$/;"	t	typeref:struct:__anon7	file:
+ilcore_comp_h	inc/ilcore.h	/^typedef void* ilcore_comp_h;$/;"	t
+ilcore_disable_all_ports	utils/ilcore.c	/^ret_code_t ilcore_disable_all_ports(ilcore_comp_h h)$/;"	f
+ilcore_get_handle	utils/ilcore.c	/^OMX_HANDLETYPE ilcore_get_handle(ilcore_comp_h h)$/;"	f
+ilcore_get_state	utils/ilcore.c	/^ret_code_t ilcore_get_state(ilcore_comp_h h, OMX_STATETYPE *state)$/;"	f
+ilcore_init_comp	utils/ilcore.c	/^ret_code_t ilcore_init_comp(ilcore_comp_h *h, OMX_CALLBACKTYPE *cb, char *name)$/;"	f
+ilcore_set_port_buffers_param	utils/ilcore.c	/^ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count)$/;"	f
+ilcore_set_state	utils/ilcore.c	/^ret_code_t ilcore_set_state(ilcore_comp_h h, OMX_STATETYPE state)$/;"	f
+ilcore_uninit_comp	utils/ilcore.c	/^void ilcore_uninit_comp(ilcore_comp_h h)$/;"	f
+init	inc/video_player.h	/^	ret_code_t (*init)(video_player_h ctx);$/;"	m	struct:__anon18
+init_audio_buffers	demux/demuxing_decoding.c	/^static ret_code_t init_audio_buffers(app_audio_ctx_t *ctx)$/;"	f	file:
+init_context	audio/player/pulse/pulse_player.c	/^static int init_context(pulse_player_ctx_t *ctx)$/;"	f	file:
+init_sdl	video/player/sdl2/sdl_player.c	/^static int init_sdl(video_player_h h)$/;"	f	file:
+kbhit	main.c	/^int kbhit()$/;"	f
+last_node	utils/queue.c	/^    omx_node_t *last_node;$/;"	m	struct:__anon5	file:
+last_pts	inc/video_player.h	/^    int64_t last_pts;$/;"	m	struct:__anon18
+lbmc_log	utils/logs.c	/^void lbmc_log(const char *file, int line, log_dbg_lvl_t lvl, char *fmt, ...)$/;"	f
+linesize	demux/demuxing_decoding.c	/^	int linesize[4];$/;"	m	struct:__anon12	file:
+list_add_head	utils/list.c	/^int list_add_head(list_h h, list_node_t *node)$/;"	f
+list_add_tail	utils/list.c	/^int list_add_tail(list_h h, list_node_t *node)$/;"	f
+list_find	utils/list.c	/^list_node_t *list_find(list_h h, find_func func, void *user_data)$/;"	f
+list_get_count	utils/list.c	/^int list_get_count(list_h h)$/;"	f
+list_get_first	utils/list.c	/^list_node_t *list_get_first(list_h h)$/;"	f
+list_get_next	utils/list.c	/^list_node_t *list_get_next(list_node_t *node)$/;"	f
+list_get_priv	utils/list.c	/^list_node_t *list_get_priv(list_node_t *node)$/;"	f
+list_get_tail	utils/list.c	/^list_node_t *list_get_tail(list_h h)$/;"	f
+list_h	inc/list.h	/^typedef void* list_h;$/;"	t
+list_insert_after	utils/list.c	/^int list_insert_after(list_h h, list_node_t *after, list_node_t *node)$/;"	f
+list_insert_before	utils/list.c	/^int list_insert_before(list_h h, list_node_t *before, list_node_t *node)$/;"	f
+list_lock	utils/list.c	/^void list_lock(list_h h)$/;"	f
+list_node_s	inc/list.h	/^typedef struct list_node_s {$/;"	s
+list_node_t	inc/list.h	/^} list_node_t;$/;"	t	typeref:struct:list_node_s
+list_remove	utils/list.c	/^int list_remove(list_h h, list_node_t *node)$/;"	f
+list_remove_head	utils/list.c	/^list_node_t *list_remove_head(list_h h)$/;"	f
+list_remove_tail	utils/list.c	/^list_node_t *list_remove_tail(list_h h)$/;"	f
+list_t	utils/list.c	/^} list_t;$/;"	t	typeref:struct:__anon6	file:
+list_unlock	utils/list.c	/^void list_unlock(list_h h)$/;"	f
+log_buff	utils/logs.c	/^static char log_buff[512];$/;"	v	file:
+log_dbg_lvl_t	inc/log.h	/^} log_dbg_lvl_t;$/;"	t	typeref:enum:__anon16
+logs_init	utils/logs.c	/^void logs_init(char *file)$/;"	f
+logs_uninit	utils/logs.c	/^void logs_uninit(void)$/;"	f
+main	main.c	/^int main(int argc, char **argv)$/;"	f
+max_nb_samples	demux/demuxing_decoding.c	/^	int max_nb_samples;$/;"	m	struct:__anon10	file:
+msleep_ctx_t	utils/msleep.c	/^} msleep_ctx_t;$/;"	t	typeref:struct:__anon4	file:
+msleep_h	inc/msleep.h	/^typedef void* msleep_h;$/;"	t
+msleep_init	utils/msleep.c	/^int msleep_init(msleep_h *h)$/;"	f
+msleep_uninit	utils/msleep.c	/^void msleep_uninit(msleep_h h)$/;"	f
+msleep_wait	utils/msleep.c	/^int msleep_wait(msleep_h h, int timeout)$/;"	f
+msleep_wakeup	utils/msleep.c	/^int msleep_wakeup(msleep_h h)$/;"	f
+msleep_wakeup_broadcast	utils/msleep.c	/^int msleep_wakeup_broadcast(msleep_h h)$/;"	f
+mutex	utils/list.c	/^    pthread_mutex_t mutex;$/;"	m	struct:__anon6	file:
+mutex	utils/msleep.c	/^    pthread_mutex_t mutex;$/;"	m	struct:__anon4	file:
+mutex	utils/queue.c	/^    pthread_mutex_t mutex;$/;"	m	struct:__anon5	file:
+nData1	inc/ilcore.h	/^	OMX_U32 nData1;$/;"	m	struct:omx_event
+nData2	inc/ilcore.h	/^	OMX_U32 nData2;$/;"	m	struct:omx_event
+name	utils/ilcore.c	/^    char *name;$/;"	m	struct:__anon7	file:
+nb_samples	demux/demuxing_decoding.c	/^	int nb_samples;$/;"	m	struct:__anon10	file:
+next	inc/list.h	/^    struct list_node_s *next;$/;"	m	struct:list_node_s	typeref:struct:list_node_s::list_node_s
+next	utils/queue.c	/^    struct omx_node_s *next;$/;"	m	struct:omx_node_s	typeref:struct:omx_node_s::omx_node_s	file:
+node	inc/ilcore.h	/^	list_node_t node;$/;"	m	struct:omx_event
+omx_cmd2str	utils/ilcore.c	/^static char *omx_cmd2str(OMX_COMMANDTYPE cmd)$/;"	f	file:
+omx_cmdstrings	utils/ilcore.c	/^static char *omx_cmdstrings[] = {"OMX_CommandStateSet", "OMX_CommandFlush", "OMX_CommandPortDisable",$/;"	v	file:
+omx_core_comp_remove	utils/ilcore.c	/^static void omx_core_comp_remove(ilcore_comp_ctx_t *comp, OMX_EVENTTYPE eEvent, OMX_U32 nData1, OMX_U32 nData2)$/;"	f	file:
+omx_core_comp_wait_command	utils/ilcore.c	/^OMX_ERRORTYPE omx_core_comp_wait_command(ilcore_comp_h h, OMX_U32 command, OMX_U32 nData2, long timeout)$/;"	f
+omx_event	inc/ilcore.h	/^typedef struct omx_event {$/;"	s
+omx_event2str	utils/ilcore.c	/^static char *omx_event2str(OMX_EVENTTYPE event)$/;"	f	file:
+omx_event_t	inc/ilcore.h	/^} omx_event_t;$/;"	t	typeref:struct:omx_event
+omx_eventstrings	utils/ilcore.c	/^static char *omx_eventstrings[] = {"OMX_EventCmdComplete", "OMX_EventError", "OMX_EventMark",$/;"	v	file:
+omx_node_s	utils/queue.c	/^typedef struct omx_node_s {$/;"	s	file:
+omx_node_t	utils/queue.c	/^} omx_node_t;$/;"	t	typeref:struct:omx_node_s	file:
+omx_queue_count	utils/queue.c	/^int omx_queue_count(omx_queue_h h)$/;"	f
+omx_queue_h	inc/queue.h	/^typedef void* omx_queue_h;$/;"	t
+omx_queue_init	utils/queue.c	/^int omx_queue_init(omx_queue_h *h)$/;"	f
+omx_queue_pop	utils/queue.c	/^void *omx_queue_pop(omx_queue_h h)$/;"	f
+omx_queue_push	utils/queue.c	/^int omx_queue_push(omx_queue_h h, void *data)$/;"	f
+omx_queue_t	utils/queue.c	/^} omx_queue_t;$/;"	t	typeref:struct:__anon5	file:
+omx_queue_uninit	utils/queue.c	/^void omx_queue_uninit(omx_queue_h h)$/;"	f
+open_codec_context	demux/demuxing_decoding.c	/^static ret_code_t open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type)$/;"	f	file:
+orig_termios	main.c	/^struct termios orig_termios;$/;"	v	typeref:struct:termios
+output	utils/logs.c	/^static FILE *output = NULL;$/;"	v	file:
+pause	audio/player/pulse/pulse_player.c	/^	int pause;$/;"	m	struct:__anon9	file:
+pause	audio/player/raspi/raspi_player.c	/^    int pause;$/;"	m	struct:__anon8	file:
+pix_fmt	video/player/sdl2/sdl_player.c	/^	enum AVPixelFormat pix_fmt;$/;"	m	struct:__anon3	typeref:enum:__anon3::AVPixelFormat	file:
+planar_sample_to_same_packed	demux/demuxing_decoding.c	/^static enum AVSampleFormat planar_sample_to_same_packed(enum AVSampleFormat fmt)$/;"	f	file:
+player_ctx_t	audio/player/raspi/raspi_player.c	/^} player_ctx_t;$/;"	t	typeref:struct:__anon8	file:
+player_ctx_t	video/player/gl/gl_player.c	/^} player_ctx_t;$/;"	t	typeref:struct:__anon2	file:
+player_ctx_t	video/player/sdl2/sdl_player.c	/^} player_ctx_t;$/;"	t	typeref:struct:__anon3	file:
+player_main_routine	video/common/video_player.c	/^void *player_main_routine(void *args)$/;"	f
+player_routine	audio/player/pulse/pulse_player.c	/^static void *player_routine(void *args)$/;"	f	file:
+player_routine	audio/player/raspi/raspi_player.c	/^static void *player_routine(void *args)$/;"	f	file:
+player_state_t	inc/video_player.h	/^} player_state_t;$/;"	t	typeref:enum:__anon17
+prev	inc/list.h	/^    struct list_node_s *prev;$/;"	m	struct:list_node_s	typeref:struct:list_node_s::list_node_s
+print_log	video/player/gl/gl_player.c	/^static void print_log(GLuint obj)$/;"	f	file:
+priv	inc/video_player.h	/^	video_player_h priv;$/;"	m	struct:__anon18
+pts_ms	demux/demuxing_decoding.c	/^    int64_t pts_ms; \/* PTS in ms from a stream begin *\/$/;"	m	struct:__anon12	file:
+pulse_player_ctx_t	audio/player/pulse/pulse_player.c	/^} pulse_player_ctx_t;$/;"	t	typeref:struct:__anon9	file:
+read_demux_data	demux/demuxing_decoding.c	/^static void *read_demux_data(void *args)$/;"	f	file:
+realloc_audio_buffer	demux/demuxing_decoding.c	/^static ret_code_t realloc_audio_buffer(audio_buffer_t *buffer, enum AVSampleFormat dst_fmt)$/;"	f	file:
+remove_head_priv	utils/list.c	/^static list_node_t *remove_head_priv(list_t *ctx)$/;"	f	file:
+remove_tail_priv	utils/list.c	/^static list_node_t *remove_tail_priv(list_t *ctx)$/;"	f	file:
+render	audio/player/raspi/raspi_player.c	/^    ilcore_comp_h render;$/;"	m	struct:__anon8	file:
+render_text	video/player/gl/gl_player.c	/^static void render_text(player_ctx_t *ctx, const char *text, float x, float y, float red, float green, float blue)$/;"	f	file:
+renderer	video/player/sdl2/sdl_player.c	/^	SDL_Renderer *renderer;$/;"	m	struct:__anon3	file:
+resampling_config	demux/demuxing_decoding.c	/^static ret_code_t resampling_config(app_audio_ctx_t *ctx)$/;"	f	file:
+reset_terminal_mode	main.c	/^void reset_terminal_mode()$/;"	f
+reshape	video/player/gl/gl_player.c	/^static void reshape(int w, int h)$/;"	f	file:
+ret_code_t	inc/errors.h	/^} ret_code_t;$/;"	t	typeref:enum:__anon15
+running	audio/player/pulse/pulse_player.c	/^    int running;$/;"	m	struct:__anon9	file:
+running	audio/player/raspi/raspi_player.c	/^    int running;$/;"	m	struct:__anon8	file:
+running	inc/video_player.h	/^	int running;$/;"	m	struct:__anon18
+set_conio_terminal_mode	main.c	/^void set_conio_terminal_mode()$/;"	f
+set_text_color	video/player/gl/gl_player.c	/^static void set_text_color(player_ctx_t *ctx, float r, float g, float b, float a)$/;"	f	file:
+shader_frag	video/player/gl/gl_player.c	/^static const char *shader_frag =$/;"	v	file:
+shader_vert	video/player/gl/gl_player.c	/^static const char *shader_vert =$/;"	v	file:
+show_console_cursore	main.c	/^static void show_console_cursore(void)$/;"	f	file:
+signal_audio_full_buffer	demux/demuxing_decoding.c	/^static void signal_audio_full_buffer(app_audio_ctx_t *ctx)$/;"	f	file:
+signal_release_audio_buffer	demux/demuxing_decoding.c	/^static void signal_release_audio_buffer(app_audio_ctx_t *ctx)$/;"	f	file:
+signal_release_video_buffer	demux/demuxing_decoding.c	/^static void signal_release_video_buffer(app_video_ctx_t *ctx)$/;"	f	file:
+signal_video_full_buffer	demux/demuxing_decoding.c	/^static void signal_video_full_buffer(app_video_ctx_t *ctx)$/;"	f	file:
+size	demux/demuxing_decoding.c	/^	int size;$/;"	m	struct:__anon12	file:
+size	demux/demuxing_decoding.c	/^	size_t size;$/;"	m	struct:__anon10	file:
+size	video/common/ft_text.c	/^	int size;$/;"	m	struct:__anon1	file:
+slist_add_head	utils/list.c	/^int slist_add_head(list_h h, list_node_t *node)$/;"	f
+slist_add_tail	utils/list.c	/^int slist_add_tail(list_h h, list_node_t *node)$/;"	f
+slist_find_remove	utils/list.c	/^list_node_t *slist_find_remove(list_h h, find_func func, void *user_data)$/;"	f
+slist_get_count	utils/list.c	/^int slist_get_count(list_h h)$/;"	f
+slist_get_remove_head	utils/list.c	/^list_node_t *slist_get_remove_head(list_h h)$/;"	f
+slist_get_remove_tail	utils/list.c	/^list_node_t *slist_get_remove_tail(list_h h)$/;"	f
+slist_init	utils/list.c	/^int slist_init(list_h *h)$/;"	f
+slist_uninit	utils/list.c	/^void slist_uninit(list_h h)$/;"	f
+sp	video/player/gl/gl_player.c	/^	GLuint sp; \/* Shader Program *\/$/;"	m	struct:__anon2	file:
+st	demux/demuxing_decoding.c	/^    AVStream *st;$/;"	m	struct:__anon13	file:
+state	inc/video_player.h	/^	player_state_t state;$/;"	m	struct:__anon18
+stop_decode	demux/demuxing_decoding.c	/^    int stop_decode;$/;"	m	struct:__anon14	file:
+str_log_lvl	utils/logs.c	/^static char *str_log_lvl[] = {"VERB", "INFO", "WARN", "ERROR", "ALERT", "FATAL"};$/;"	v	file:
+stream_idx	demux/demuxing_decoding.c	/^	int stream_idx;$/;"	m	struct:__anon11	file:
+stream_idx	demux/demuxing_decoding.c	/^	int stream_idx;$/;"	m	struct:__anon13	file:
+swr	demux/demuxing_decoding.c	/^	struct SwrContext *swr;$/;"	m	struct:__anon11	typeref:struct:__anon11::SwrContext	file:
+sws	demux/demuxing_decoding.c	/^	struct SwsContext *sws;$/;"	m	struct:__anon13	typeref:struct:__anon13::SwsContext	file:
+task	audio/player/pulse/pulse_player.c	/^	pthread_t task;$/;"	m	struct:__anon9	file:
+task	audio/player/raspi/raspi_player.c	/^    pthread_t task;$/;"	m	struct:__anon8	file:
+task	demux/demuxing_decoding.c	/^	pthread_t task;$/;"	m	struct:__anon14	file:
+task	inc/video_player.h	/^	pthread_t task;$/;"	m	struct:__anon18
+tex_attrib	video/player/gl/gl_player.c	/^	GLint tex_attrib;$/;"	m	struct:__anon2	file:
+tex_frame	video/player/gl/gl_player.c	/^	GLuint tex_frame;$/;"	m	struct:__anon2	file:
+tex_osd	video/player/gl/gl_player.c	/^	GLuint tex_osd;$/;"	m	struct:__anon2	file:
+texture	video/player/sdl2/sdl_player.c	/^	SDL_Texture *texture;$/;"	m	struct:__anon3	file:
+timedwait_video_empty_buffer	demux/demuxing_decoding.c	/^static ret_code_t timedwait_video_empty_buffer(app_video_ctx_t *ctx, int timeout)$/;"	f	file:
+timedwait_video_full_buffer	demux/demuxing_decoding.c	/^static ret_code_t timedwait_video_full_buffer(app_video_ctx_t *ctx, int timeout)$/;"	f	file:
+ts2ms	demux/demuxing_decoding.c	/^static int64_t ts2ms(AVRational *time_base, int64_t ts)$/;"	f	file:
+uninit	inc/video_player.h	/^	void (*uninit)(video_player_h ctx);$/;"	m	struct:__anon18
+uninit_audio_buffers	demux/demuxing_decoding.c	/^static void uninit_audio_buffers(app_audio_ctx_t *ctx)$/;"	f	file:
+uninit_context	audio/player/pulse/pulse_player.c	/^static void uninit_context(pulse_player_ctx_t *ctx)$/;"	f	file:
+uninit_sdl	video/player/sdl2/sdl_player.c	/^static void uninit_sdl(video_player_h h)$/;"	f	file:
+util_time_add	utils/timeutils.c	/^ret_code_t util_time_add(struct timespec *t, uint32_t ms)$/;"	f
+util_time_compare	utils/timeutils.c	/^ret_code_t util_time_compare(struct timespec *t1, struct timespec *t2)$/;"	f
+util_time_sub	utils/timeutils.c	/^int util_time_sub(struct timespec *t1, struct timespec *t2)$/;"	f
+vao	video/player/gl/gl_player.c	/^	GLuint vao;$/;"	m	struct:__anon2	file:
+vbo	video/player/gl/gl_player.c	/^	GLuint vbo;$/;"	m	struct:__anon2	file:
+vertices	video/player/gl/gl_player.c	/^static GLfloat vertices[] = {$/;"	v	file:
+video_buffer_t	demux/demuxing_decoding.c	/^} video_buffer_t;$/;"	t	typeref:struct:__anon12	file:
+video_ctx	demux/demuxing_decoding.c	/^	app_video_ctx_t *video_ctx;$/;"	m	struct:__anon14	file:
+video_player_context	inc/video_player.h	/^} video_player_context;$/;"	t	typeref:struct:__anon18
+video_player_h	inc/video_player.h	/^typedef void* video_player_h;$/;"	t
+video_player_pause	video/common/video_player.c	/^void video_player_pause(video_player_context *player_ctx)$/;"	f
+video_player_start	video/player/gl/gl_player.c	/^ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h)$/;"	f
+video_player_start	video/player/sdl2/sdl_player.c	/^ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h)$/;"	f
+video_player_stop	video/common/video_player.c	/^void video_player_stop(video_player_context *player_ctx)$/;"	f
+vs	video/player/gl/gl_player.c	/^	GLuint vs; \/* Vertex Shader *\/$/;"	m	struct:__anon2	file:
+wait_audio_empty_buffer	demux/demuxing_decoding.c	/^static ret_code_t wait_audio_empty_buffer(app_audio_ctx_t *ctx)$/;"	f	file:
+wait_audio_full_buffer	demux/demuxing_decoding.c	/^static ret_code_t wait_audio_full_buffer(app_audio_ctx_t *ctx)$/;"	f	file:
+width	video/player/gl/gl_player.c	/^	int width, height;$/;"	m	struct:__anon2	file:
+width	video/player/sdl2/sdl_player.c	/^	int width, height;$/;"	m	struct:__anon3	file:
+win	video/player/gl/gl_player.c	/^	int win;$/;"	m	struct:__anon2	file:
+window	video/player/sdl2/sdl_player.c	/^	SDL_Window *window;$/;"	m	struct:__anon3	file:

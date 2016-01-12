@@ -1,0 +1,9 @@
+CXX_SRC=$(filter %.cpp, $(SRC))
+CC_SRC=$(filter %.c, $(SRC))
+
+OBJS:=$(patsubst %.cpp, $(OBJ_PATH)/%.o, $(CXX_SRC))
+OBJS+=$(patsubst %.c, $(OBJ_PATH)/%.o, $(CC_SRC))
+DEPS:=$(patsubst %.cpp, $(OBJ_PATH)/%.d, $(CXX_SRC))
+DEPS+=$(patsubst %.c, $(OBJ_PATH)/%.d, $(CC_SRC))
+DEPFILE=$(OBJ_PATH)/$(*F)
+
