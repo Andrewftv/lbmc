@@ -3,10 +3,16 @@
 
 #include "log.h"
 
+#define LOG_BUFF_LEN	512
+
+#ifdef LBMC_DEBUG
 static log_dbg_lvl_t current_log_level = LOG_LVL_INFO;
+#else
+static log_dbg_lvl_t current_log_level = LOG_LVL_WARN;
+#endif
 
 static char *str_log_lvl[] = {"VERB", "INFO", "WARN", "ERROR", "ALERT", "FATAL"};
-static char log_buff[512];
+static char log_buff[LOG_BUFF_LEN];
 static FILE *output = NULL;
 
 void logs_init(char *file)
@@ -37,7 +43,8 @@ void lbmc_log(const char *file, int line, log_dbg_lvl_t lvl, char *fmt, ...)
 		return;
 
 	va_start(ap, fmt);
-	vsnprintf(log_buff, 512, fmt, ap);
+	/* Reserve a last byte for string terminator */
+	vsnprintf(log_buff, LOG_BUFF_LEN - 1, fmt, ap);
 	va_end(ap);
 	fprintf(output, "[%5s][%s:%d] %s", str_log_lvl[lvl], file, line, log_buff);
 	if (output != stderr)

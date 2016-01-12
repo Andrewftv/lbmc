@@ -33,16 +33,16 @@ STRIP:=strip
 AR:=ar
 CXXCP:=$(CXX) -E
 CFLAGS+=-pipe
-ifndef DEBUG
-CFLAGS+=-O2
-else
-CFLAGS+=-g -O0
-endif
 CXXFLAGS=-std=c++0x
 endif
 
-CFLAGS+=-Wall -Wno-deprecated-declarations
-LDFLAGS:=
+ifdef LBMC_DEBUG
+CFLAGS+=-g -O0 -DLBMC_DEBUG
+else
+CFLAGS+=-O2
+endif
+
+CFLAGS+=-Wall -Werror -Wno-deprecated-declarations
 INCLUDES:=-I$(TOP_DIR)/inc -I/usr/include/freetype2/
 ifdef CONFIG_RASPBERRY_PI
 INCLUDES+=-I$(SYSROOT)/usr/include/interface/vcos/pthreads -I$(SYSROOT)/usr/include/interface/vmcs_host/linux
@@ -50,7 +50,7 @@ endif
 
 FFMPEG_LIBS = -lavdevice -lavformat -lavfilter -lavcodec -lswresample -lswscale -lavutil
 
-LDFLAGS += $(FFMPEG_LIBS) -lpthread -lrt -lfreetype
+LDFLAGS := $(FFMPEG_LIBS) -lpthread -lrt -lfreetype
 ifdef CONFIG_RASPBERRY_PI
 LDFLAGS += -lbcm_host -lWFC -lGLESv2 -lEGL -lopenmaxil -lvchiq_arm -lvcos
 endif
