@@ -10,7 +10,7 @@
  * Compare two timespec structures
  * Return -1 if t1 less t2, 1 if t1 above t2 and 0 if equal.
  */
-ret_code_t util_time_compare(struct timespec *t1, struct timespec *t2);
+int util_time_compare(struct timespec *t1, struct timespec *t2);
 /*
  * Substruct time.
  * Return time difference in miliseconds.

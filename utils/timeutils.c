@@ -1,6 +1,6 @@
 #include "timeutils.h"
 
-ret_code_t util_time_compare(struct timespec *t1, struct timespec *t2)
+int util_time_compare(struct timespec *t1, struct timespec *t2)
 {
     if (t1->tv_sec > t2->tv_sec)
         return 1;
@@ -11,7 +11,7 @@ ret_code_t util_time_compare(struct timespec *t1, struct timespec *t2)
     else if (t1->tv_nsec < t2->tv_nsec)
         return -1;
 
-    return L_OK;
+    return 0;
 }
 
 int util_time_sub(struct timespec *t1, struct timespec *t2)
