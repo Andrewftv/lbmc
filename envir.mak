@@ -20,7 +20,7 @@ CXXCP:=$(CXX) -E
 FLOAT=hard
 CFLAGS+=-pipe -mfloat-abi=$(FLOAT) -mcpu=arm1176jzf-s -fomit-frame-pointer \
 	-mabi=aapcs-linux -mtune=arm1176jzf-s -mfpu=vfp -Wno-psabi \
-	-mno-apcs-stack-check -O3 -mstructure-size-boundary=32 -mno-sched-prolog
+	-mno-apcs-stack-check -mstructure-size-boundary=32 -mno-sched-prolog
 endif
 
 ifdef CONFIG_PC
