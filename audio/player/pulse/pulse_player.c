@@ -15,12 +15,17 @@
 #include "log.h"
 #include "decode.h"
 #include "audio_player.h"
+#include "timeutils.h"
 
 typedef struct {
 	pthread_t task;
 
 	int pause;
     int running;
+
+    int64_t corrected_pts;
+    int64_t last_pts;
+    struct timespec base_time;
 
 	demux_ctx_h audio_ctx;
 } pulse_player_ctx_t;
@@ -72,7 +77,9 @@ static void *player_routine(void *args)
 	int error;
 	size_t size;
 	uint8_t *buf;
+    int64_t pts;
 	enum AVSampleFormat fmt;
+    int first_pkt = 1;
     ret_code_t rc;
 
 	ss.rate = decode_get_sample_rate(ctx->audio_ctx);
@@ -104,7 +111,7 @@ static void *player_routine(void *args)
 			continue;
 		}
 
-		buf = decode_get_next_audio_buffer(ctx->audio_ctx, &size, NULL, &rc);
+		buf = decode_get_next_audio_buffer(ctx->audio_ctx, &size, NULL, &pts, &rc);
         if (!buf)
         {
             if (rc != L_STOPPING)
@@ -113,12 +120,40 @@ static void *player_routine(void *args)
             continue;
         }
 
+        if (first_pkt)
+        {
+            clock_gettime(CLOCK_MONOTONIC, &ctx->base_time);
+            first_pkt = 0;
+        }
+        else if (pts != AV_NOPTS_VALUE)
+        {
+            struct timespec curr_time;
+            int diff, pts_ms = (int)pts - ctx->corrected_pts;
+
+            clock_gettime(CLOCK_MONOTONIC, &curr_time);
+            diff = util_time_sub(&curr_time, &ctx->base_time);
+            DBG_V("Current PTS=%d time diff=%d\n", pts_ms, diff);
+            if (pts_ms > diff)
+            {
+                diff = pts_ms - diff;
+                DBG_V("Going to sleep for %d ms\n", diff);
+                usleep(diff * 1000);
+                ctx->last_pts = pts;
+            }
+            else if (diff > pts_ms + 10)
+            {
+                ctx->last_pts = pts;
+                DBG_V("Drop this packet\n");
+                goto Drop;
+            }
+        }
+
 		if (pa_simple_write(s, buf, size, &error) < 0) 
 		{
             DBG_E("pa_simple_write() failed: %s\n", pa_strerror(error));
             break;
         }
-
+Drop:
 		decode_release_audio_buffer(ctx->audio_ctx);
 	}
 
@@ -144,6 +179,10 @@ void audio_player_pause(audio_player_h player_ctx)
 {
 	pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)player_ctx;
 
+    if (ctx->pause)
+        clock_gettime(CLOCK_MONOTONIC, &ctx->base_time);
+    else
+        ctx->corrected_pts = ctx->last_pts;
 	ctx->pause = !ctx->pause;
 }
 

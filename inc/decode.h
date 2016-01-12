@@ -14,7 +14,7 @@ void decode_uninit(demux_ctx_h h);
 
 /* Access to buffers by player */
 int decode_get_audio_buffers_count(demux_ctx_h h);
-uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, ret_code_t *rc);
+uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, int64_t *pts, ret_code_t *rc);
 void decode_release_audio_buffer(demux_ctx_h h);
 
 int decode_is_audio(demux_ctx_h h);

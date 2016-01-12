@@ -27,12 +27,14 @@ typedef struct {
 	size_t size;
 	int nb_samples;
 	int max_nb_samples;
+    int64_t pts_ms; /* PTS in ms from a stream begin */
     void *app_data;
 } audio_buffer_t;
 
 typedef struct {
 	struct SwrContext *swr;
 	struct AVCodecContext *codec;
+    AVStream *st;
 
 	msleep_h empty_buff;
 	msleep_h full_buff;
@@ -72,6 +74,7 @@ typedef struct {
 	int curr_play_buff;
 	int free_buffs;
 
+    int subtitle_stream_idx;
 	int stream_idx;
 	int frame_count;
 } app_video_ctx_t;
@@ -218,6 +221,7 @@ ret_code_t decode_next_audio_stream(demux_ctx_h h)
         if (st->codec->codec_type == AVMEDIA_TYPE_AUDIO)
             break;
     }
+    ctx->audio_ctx->st = st;
 
     DBG_I("Next audio stream index is %d\n", index);
 
@@ -336,6 +340,13 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
 		}
 	    msleep_init(&vctx->empty_buff);
 		msleep_init(&vctx->full_buff);
+
+        if (!open_codec_context(&stream_index, ctx->fmt_ctx, AVMEDIA_TYPE_SUBTITLE))
+        {
+            DBG_I("Subtitles stream was found\n");
+
+            vctx->subtitle_stream_idx = stream_index;
+        }
 	}
 #endif
 	if (!open_codec_context(&stream_index, ctx->fmt_ctx, AVMEDIA_TYPE_AUDIO))
@@ -359,6 +370,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
 
 		audio_stream = ctx->fmt_ctx->streams[stream_index];
 		actx->codec = audio_stream->codec;
+        actx->st = audio_stream;
 
         actx->audio_streams = get_audio_streams_count(ctx->fmt_ctx);
         DBG_I("Audio stream was found. Index = %d total %d\n", stream_index, actx->audio_streams);
@@ -524,7 +536,7 @@ ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)
     return L_OK;
 }
 
-uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, ret_code_t *ret)
+uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, int64_t *pts, ret_code_t *ret)
 {
 	demux_ctx_t *ctx = (demux_ctx_t *)h;
 	int index;
@@ -550,6 +562,7 @@ uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_da
 	index = ctx->audio_ctx->curr_play_buff;
 	buf = ctx->audio_ctx->buffer[index].data[0];
 	*size = ctx->audio_ctx->buffer[index].size;
+    *pts = ctx->audio_ctx->buffer[index].pts_ms;
     ctx->audio_ctx->curr_play_buff++;
     if (ctx->audio_ctx->curr_play_buff >= AUDIO_BUFFERS)
         ctx->audio_ctx->curr_play_buff = 0;
@@ -827,6 +840,14 @@ static enum AVSampleFormat planar_sample_to_same_packed(enum AVSampleFormat fmt)
 	return dst_fmt;
 }
 
+static int64_t ts2ms(AVRational *time_base, int64_t ts)
+{
+    if (ts == AV_NOPTS_VALUE)
+        return AV_NOPTS_VALUE;
+
+    return ts * time_base->num * 1000 / time_base->den;
+}
+
 static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
 {
 	int ret;
@@ -858,13 +879,19 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
     if (!(*got_frame))
 		return decoded;
 
-	DBG_V("audio_frame%s n:%d nb_samples:%d pts:%s channels:%d\n", cached ? "(cached)" : "", ctx->frame_count++,
-        frame->nb_samples, av_ts2timestr(frame->pts, &ctx->codec->time_base), av_frame_get_channels(frame));
+	DBG_V("audio_frame%s n:%d nb_samples:%d pts:%"PRId64" channels:%d\n", cached ? "(cached)" : "", ctx->frame_count++,
+        frame->nb_samples, ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame)),
+        av_frame_get_channels(frame));
 
 	if (!ctx->free_buffs)
 		wait_audio_empty_buffer(ctx);
 
 	unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
+
+    if(pkt->dts != AV_NOPTS_VALUE)
+        ctx->buffer[index].pts_ms = ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame));
+    else
+        ctx->buffer[index].pts_ms = AV_NOPTS_VALUE;
 
 	dst_fmt = planar_sample_to_same_packed(ctx->codec->sample_fmt);
 	/* compute destination number of samples */
@@ -889,7 +916,7 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
        	return -1;
     }
 	ctx->buffer[index].size = (size_t)unpadded_linesize;
-			
+
 	ctx->free_buffs--;
     ctx->curr_read_buff++;
     if (ctx->curr_read_buff >= AUDIO_BUFFERS)
@@ -901,14 +928,6 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
 }
 
 #ifdef CONFIG_VIDEO
-static int64_t ts2ms(AVRational *time_base, int64_t ts)
-{
-    if (ts == AV_NOPTS_VALUE)
-        return AV_NOPTS_VALUE;
-
-    return ts * time_base->num * 1000 / time_base->den;
-}
-
 ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt)
 {
 	demux_ctx_t *ctx = (demux_ctx_t *)h;
@@ -953,7 +972,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
 
 	if (!ctx->free_buffs)
 		timedwait_video_empty_buffer(ctx, INFINITE_WAIT);
-	
+
 	rc = sws_scale(ctx->sws, (const uint8_t * const*)frame->data, frame->linesize, 0, ctx->codec->height,
 		ctx->buff[index].buffer, ctx->buff[index].linesize);
 	if (rc < 0)
@@ -976,6 +995,12 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
 
 	return 0;
 }
+
+static int decode_subtitle_packet(app_video_ctx_t *ctx, AVPacket *pkt)
+{
+    fprintf(stderr, "--- %s\n", pkt->data);
+    return 0;
+}
 #endif
 
 static int decode_packet(int *got_frame, int cached, demux_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
@@ -990,6 +1015,12 @@ static int decode_packet(int *got_frame, int cached, demux_ctx_t *ctx, AVFrame *
 		if (decode_video_packet(got_frame, cached, ctx->video_ctx, frame, pkt) < 0)
 			return -1;
 	}
+    else if (ctx->video_ctx && pkt->stream_index == ctx->video_ctx->subtitle_stream_idx)
+    {
+        *got_frame = 1;
+        if (decode_subtitle_packet(ctx->video_ctx, pkt) < 0)
+            return -1;
+    }
 	else
 #endif
     if (ctx->audio_ctx && pkt->stream_index == ctx->audio_ctx->stream_idx)
@@ -1128,7 +1159,7 @@ static void *read_demux_data(void *args)
 		decode_packet(&got_frame, 1, ctx, frame, &pkt);
     }
 	while (got_frame);
-	
+
 	printf("\n");
 
 	av_frame_free(&frame);
