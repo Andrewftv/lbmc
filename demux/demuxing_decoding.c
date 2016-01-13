@@ -99,42 +99,11 @@ static ret_code_t open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, 
 static ret_code_t resampling_config(app_audio_ctx_t *ctx);
 static void uninit_audio_buffers(app_audio_ctx_t *ctx);
 
-static ret_code_t wait_audio_full_buffer(app_audio_ctx_t *ctx)
-{
-	ret_code_t rc = L_OK;
-
-    if (msleep_wait(ctx->full_buff, INFINITE_WAIT) < 0)
-		rc = L_FAILED;
-
-	return rc;
-}
-
-static void signal_release_audio_buffer(app_audio_ctx_t *ctx)
-{
-	msleep_wakeup(ctx->empty_buff);
-}
-
-static ret_code_t wait_audio_empty_buffer(app_audio_ctx_t *ctx)
-{
-	ret_code_t rc = L_OK;
-
-   	if (msleep_wait(ctx->empty_buff, INFINITE_WAIT) < 0)
-		rc = L_FAILED;
-
-	return rc;
-}
-
-static void signal_audio_full_buffer(app_audio_ctx_t *ctx)
-{
-	msleep_wakeup(ctx->full_buff);
-}
-
-#ifdef CONFIG_VIDEO
-static ret_code_t timedwait_video_full_buffer(app_video_ctx_t *ctx, int timeout)
+static ret_code_t timedwait_buffer(msleep_h h, int timeout)
 {
 	ret_code_t rc;
 
-	switch (msleep_wait(ctx->full_buff, timeout))
+    switch (msleep_wait(h, timeout))
 	{
 	case MSLEEP_INTERRUPT:
 		rc = L_OK;
@@ -151,37 +120,10 @@ static ret_code_t timedwait_video_full_buffer(app_video_ctx_t *ctx, int timeout)
 	return rc;
 }
 
-static void signal_release_video_buffer(app_video_ctx_t *ctx)
+static void signal_buffer(msleep_h h)
 {
-	msleep_wakeup(ctx->empty_buff);
+	msleep_wakeup(h);
 }
-
-static ret_code_t timedwait_video_empty_buffer(app_video_ctx_t *ctx, int timeout)
-{
-	ret_code_t rc;
-
-	switch (msleep_wait(ctx->empty_buff, timeout))
-	{
-	case MSLEEP_INTERRUPT:
-		rc = L_OK;
-		break;
-	case MSLEEP_TIMEOUT:
-		rc = L_TIMEOUT;
-		break;
-	case MSLEEP_ERROR:
-	default:
-		rc = L_FAILED;
-		break;
-	}
-
-	return rc;
-}
-
-static void signal_video_full_buffer(app_video_ctx_t *ctx)
-{
-	msleep_wakeup(ctx->full_buff);
-}
-#endif
 
 static int get_audio_streams_count(AVFormatContext *fmt)
 {
@@ -479,7 +421,7 @@ void decode_release_audio_buffer(demux_ctx_h h)
     }
 	ctx->audio_ctx->free_buffs++;
 
-    signal_release_audio_buffer(ctx->audio_ctx);
+    signal_buffer(ctx->audio_ctx->empty_buff);
 }
 
 #ifdef CONFIG_VIDEO
@@ -493,7 +435,7 @@ void decode_release_video_buffer(demux_ctx_h h)
     }
 	ctx->video_ctx->free_buffs++;
 
-    signal_release_video_buffer(ctx->video_ctx);
+    signal_buffer(ctx->video_ctx->empty_buff);
 }
 #endif
 
@@ -536,7 +478,7 @@ ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)
     return L_OK;
 }
 
-uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, int64_t *pts, ret_code_t *ret)
+uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, int64_t *pts, ret_code_t *rc)
 {
 	demux_ctx_t *ctx = (demux_ctx_t *)h;
 	int index;
@@ -544,21 +486,35 @@ uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_da
 
 	if (!ctx->audio_ctx)
     {
-        if (ret)
-            *ret = L_FAILED;
+        if (rc)
+            *rc = L_FAILED;
 		DBG_E("Audio context not allocated\n");
         return NULL;
     }
 
     if (ctx->stop_decode)
     {
-        if (ret)
-            *ret = L_STOPPING;
+        if (rc)
+            *rc = L_STOPPING;
         return NULL;
     }
     if (ctx->audio_ctx->free_buffs >= AUDIO_BUFFERS)
-        wait_audio_full_buffer(ctx->audio_ctx);
+	{
+		ret_code_t ret;
 
+        ret = timedwait_buffer(ctx->audio_ctx->full_buff, 100 /*ms*/);
+		if (rc)
+            *rc = ret;
+        if (ret == L_FAILED)
+        {
+            DBG_F("Wait condition failed\n");
+            return NULL;
+        }
+        else if(ret == L_TIMEOUT)
+        {
+            return NULL;
+        }
+	}
 	index = ctx->audio_ctx->curr_play_buff;
 	buf = ctx->audio_ctx->buffer[index].data[0];
 	*size = ctx->audio_ctx->buffer[index].size;
@@ -570,8 +526,8 @@ uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_da
     if (app_data)
         *app_data = ctx->audio_ctx->buffer[index].app_data;
 
-    if (ret)
-        *ret = L_OK;
+    if (rc)
+        *rc = L_OK;
 
 	return buf;	
 }
@@ -601,7 +557,7 @@ uint8_t *decode_get_next_video_buffer(demux_ctx_h h, size_t *size, int64_t *pts,
     {
         ret_code_t ret;
 
-        ret = timedwait_video_full_buffer(ctx->video_ctx, 100/*ms*/);
+        ret = timedwait_buffer(ctx->video_ctx->full_buff, 100/*ms*/);
         if (rc)
             *rc = ret;
         if (ret == L_FAILED)
@@ -739,10 +695,10 @@ void decode_stop(demux_ctx_h h)
 
 	ctx->stop_decode = 1;
 	if (ctx->audio_ctx)
-    	signal_audio_full_buffer(ctx->audio_ctx);
+    	signal_buffer(ctx->audio_ctx->full_buff);
 #ifdef CONFIG_VIDEO
 	if (ctx->video_ctx)
-    	signal_video_full_buffer(ctx->video_ctx);
+    	signal_buffer(ctx->video_ctx->full_buff);
 #endif
 }
 
@@ -884,7 +840,7 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
         av_frame_get_channels(frame));
 
 	if (!ctx->free_buffs)
-		wait_audio_empty_buffer(ctx);
+		timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
 
 	unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
 
@@ -922,7 +878,7 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
     if (ctx->curr_read_buff >= AUDIO_BUFFERS)
         ctx->curr_read_buff = 0;
 
-	signal_audio_full_buffer(ctx);
+	signal_buffer(ctx->full_buff);
 
 	return decoded;
 }
@@ -971,7 +927,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
         ts2ms(&ctx->codec->time_base, av_frame_get_best_effort_timestamp(frame)));
 
 	if (!ctx->free_buffs)
-		timedwait_video_empty_buffer(ctx, INFINITE_WAIT);
+		timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
 
 	rc = sws_scale(ctx->sws, (const uint8_t * const*)frame->data, frame->linesize, 0, ctx->codec->height,
 		ctx->buff[index].buffer, ctx->buff[index].linesize);
@@ -991,7 +947,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     if (ctx->curr_read_buff >= VIDEO_BUFFERS)
         ctx->curr_read_buff = 0;
 
-	signal_video_full_buffer(ctx);
+	signal_buffer(ctx->full_buff);
 
 	return 0;
 }
