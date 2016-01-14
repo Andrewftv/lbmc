@@ -12,8 +12,8 @@
 
 void video_player_pause(video_player_context *player_ctx)
 {
-	if (!player_ctx)
-		return;
+    if (!player_ctx)
+        return;
 
     if (player_ctx->state == PLAYER_PAUSE)
     {
@@ -29,42 +29,42 @@ void video_player_pause(video_player_context *player_ctx)
 
 void video_player_stop(video_player_context *player_ctx)
 {
-	if (!player_ctx)
-		return;
+    if (!player_ctx)
+        return;
 
-	player_ctx->running = 0;
-	/* Waiting for player task */
-	pthread_join(player_ctx->task, NULL);
+    player_ctx->running = 0;
+    /* Waiting for player task */
+    pthread_join(player_ctx->task, NULL);
 
-	free(player_ctx->priv);
+    free(player_ctx->priv);
 }
 
 void *player_main_routine(void *args)
 {
-	size_t size;
-	uint8_t *buf;
+    size_t size;
+    uint8_t *buf;
     int64_t pts;
     int first_pkt = 1;
-	video_player_context *player_ctx = (video_player_context *)args;
+    video_player_context *player_ctx = (video_player_context *)args;
 
-	DBG_I("Video player task started.\n");
+    DBG_I("Video player task started.\n");
 
-	if (player_ctx->init(player_ctx->priv))
-		return NULL;
+    if (player_ctx->init(player_ctx->priv))
+        return NULL;
 
 #ifdef TEXT_RENDERER
-	if (ft_text_init(&ctx->ft_lib))
-		ctx->ft_lib = NULL;
+    if (ft_text_init(&ctx->ft_lib))
+        ctx->ft_lib = NULL;
 #endif
 
-	player_ctx->running = 1;
+    player_ctx->running = 1;
 
-	while(player_ctx->running)
-	{
+    while(player_ctx->running)
+    {
         ret_code_t rc;
 
-		if (!player_ctx->running)
-			break;
+        if (!player_ctx->running)
+            break;
 
         if (player_ctx->state == PLAYER_PAUSE)
         {
@@ -72,7 +72,7 @@ void *player_main_routine(void *args)
             continue;
         }
 
-		buf = decode_get_next_video_buffer(player_ctx->demux_ctx, &size, &pts, &rc);
+        buf = decode_get_next_video_buffer(player_ctx->demux_ctx, &size, &pts, &rc);
         if (!buf)
         {
             if (rc == L_FAILED)
@@ -83,7 +83,7 @@ void *player_main_routine(void *args)
             else if (rc == L_TIMEOUT)
             {
                 if (player_ctx->idle)
-					player_ctx->idle(player_ctx->priv);
+                    player_ctx->idle(player_ctx->priv);
                 continue;
             }
             else if (rc == L_OK)
@@ -115,20 +115,20 @@ void *player_main_routine(void *args)
             player_ctx->last_pts = pts;
         }
 
-		player_ctx->draw_frame(player_ctx->priv, buf);
+        player_ctx->draw_frame(player_ctx->priv, buf);
 
-		decode_release_video_buffer(player_ctx->demux_ctx);
-	}
+        decode_release_video_buffer(player_ctx->demux_ctx);
+    }
 
-	player_ctx->running = 0;
+    player_ctx->running = 0;
 #ifdef TEXT_RENDERER
-	if (ctx->ft_lib)
-		ft_text_uninit(ctx->ft_lib);
+    if (ctx->ft_lib)
+        ft_text_uninit(ctx->ft_lib);
 #endif
 
-	player_ctx->uninit(player_ctx->priv);
+    player_ctx->uninit(player_ctx->priv);
 
-	DBG_I("Video player task finished.\n");
-	return NULL;
+    DBG_I("Video player task finished.\n");
+    return NULL;
 }
 

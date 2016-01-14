@@ -107,16 +107,13 @@ static char *omx_event2str(OMX_EVENTTYPE event)
 
 static int find_func_cb(list_node_t *node, void *user_data)
 {
-	omx_event_t *s1 = (omx_event_t *)node;
-	omx_event_t *s2 = (omx_event_t *)user_data;
+    omx_event_t *s1 = (omx_event_t *)node;
+    omx_event_t *s2 = (omx_event_t *)user_data;
 
-	if (s1->eEvent == s2->eEvent && s1->nData1 == s2->nData1 &&
-		s1->nData2 == s2->nData2)
-	{
-		return 1;
-	}
+    if (s1->eEvent == s2->eEvent && s1->nData1 == s2->nData1 && s1->nData2 == s2->nData2)
+        return 1;
 
-	return 0;
+    return 0;
 }
 
 OMX_ERRORTYPE il_event_handler(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent, 
@@ -148,8 +145,8 @@ OMX_ERRORTYPE omx_core_comp_wait_command(ilcore_comp_h h, OMX_U32 command, OMX_U
     ilcore_comp_ctx_t *ctx = (ilcore_comp_ctx_t *)h;
 
     cmp_event.eEvent = OMX_EventCmdComplete;
-	cmp_event.nData1 = command;
-	cmp_event.nData2 = nData2;
+    cmp_event.nData1 = command;
+    cmp_event.nData2 = nData2;
 
     while(1)
     {
@@ -182,7 +179,7 @@ OMX_ERRORTYPE omx_core_comp_wait_command(ilcore_comp_h h, OMX_U32 command, OMX_U
         }
 
         if (!timeout)
-			return OMX_ErrorMax;
+            return OMX_ErrorMax;
 
         if (msleep_wait(ctx->event_sleep, timeout) == MSLEEP_TIMEOUT)
         {
@@ -196,42 +193,42 @@ OMX_ERRORTYPE omx_core_comp_wait_command(ilcore_comp_h h, OMX_U32 command, OMX_U
 
 static void omx_core_comp_remove(ilcore_comp_ctx_t *comp, OMX_EVENTTYPE eEvent, OMX_U32 nData1, OMX_U32 nData2)
 {
-	omx_event_t cmp_event;
-	list_node_t *node;
+    omx_event_t cmp_event;
+    list_node_t *node;
 
-	cmp_event.eEvent = eEvent;
-	cmp_event.nData1 = nData1;
-	cmp_event.nData2 = nData2;
+    cmp_event.eEvent = eEvent;
+    cmp_event.nData1 = nData1;
+    cmp_event.nData2 = nData2;
 
-	while ((node = slist_find_remove(comp->event_list, find_func_cb, &cmp_event)) != NULL)
-		free(node);
+    while ((node = slist_find_remove(comp->event_list, find_func_cb, &cmp_event)) != NULL)
+        free(node);
 }
 
 ret_code_t ilcore_add_comp_event(ilcore_comp_h h, OMX_EVENTTYPE eEvent, OMX_U32 nData1, OMX_U32 nData2)
 {
-	omx_event_t *event;
+    omx_event_t *event;
     ilcore_comp_ctx_t *ctx = (ilcore_comp_ctx_t *)h;
 
     DBG_I("Add event: '%s' command: '%s' data: %d\n", omx_event2str(eEvent), omx_cmd2str(nData1), nData2);
 
-	event = (omx_event_t *)malloc(sizeof(omx_event_t));
-	if (!event)
-		return OMX_ErrorInsufficientResources;
+    event = (omx_event_t *)malloc(sizeof(omx_event_t));
+    if (!event)
+        return OMX_ErrorInsufficientResources;
 
-	event->eEvent = eEvent;
-	event->nData1 = nData1;
-	event->nData2 = nData2;
+    event->eEvent = eEvent;
+    event->nData1 = nData1;
+    event->nData2 = nData2;
 
-	omx_core_comp_remove(ctx, eEvent, nData1, nData2);
-	if (slist_add_tail(ctx->event_list, (list_node_t *)event))
-	{
-		free(event);
-		DBG_E("Function slist_add_tail failed\n");
-		return L_FAILED;
-	}
-	msleep_wakeup_broadcast(ctx->event_sleep);
+    omx_core_comp_remove(ctx, eEvent, nData1, nData2);
+    if (slist_add_tail(ctx->event_list, (list_node_t *)event))
+    {
+        free(event);
+        DBG_E("Function slist_add_tail failed\n");
+        return L_FAILED;
+}
+    msleep_wakeup_broadcast(ctx->event_sleep);
 
-	return L_OK;
+    return L_OK;
 }
 
 ret_code_t ilcore_disable_all_ports(ilcore_comp_h h)
@@ -370,7 +367,7 @@ ret_code_t ilcore_disable_port(ilcore_comp_h h, uint32_t port, int wait)
     omx_err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
     if(omx_err != OMX_ErrorNone)
     {
-		DBG_E("%s: Error get port %d status on component %s err = 0x%08x\n", __FUNCTION__, port,
+        DBG_E("%s: Error get port %d status on component %s err = 0x%08x\n", __FUNCTION__, port,
             ilcore_get_comp_name(h), omx_err);
         return L_FAILED;
     }
@@ -380,17 +377,17 @@ ret_code_t ilcore_disable_port(ilcore_comp_h h, uint32_t port, int wait)
 
     omx_err = OMX_SendCommand(ctx->handle, OMX_CommandPortDisable, port, NULL);
     if(omx_err != OMX_ErrorNone)
-	{
-		DBG_E("%s: Error disable port %d on component %s err = 0x%08x\n", __FUNCTION__, port, ilcore_get_comp_name(h),
+    {
+        DBG_E("%s: Error disable port %d on component %s err = 0x%08x\n", __FUNCTION__, port, ilcore_get_comp_name(h),
             omx_err);
-		return L_FAILED;
-	}
+        return L_FAILED;
+    }
 
     if (wait)
     {
         omx_err = omx_core_comp_wait_command(h, OMX_CommandPortDisable, port, 2000);
         if(omx_err != OMX_ErrorNone)
-		    return L_FAILED;
+            return L_FAILED;
     }
     return L_OK;
 }
@@ -411,7 +408,7 @@ ret_code_t ilcore_enable_port(ilcore_comp_h h, uint32_t port, int wait)
     omx_err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
     if(omx_err != OMX_ErrorNone)
     {
-		DBG_E("%s: Error get port %d status on component %s err = 0x%08x\n", __FUNCTION__, port,
+        DBG_E("%s: Error get port %d status on component %s err = 0x%08x\n", __FUNCTION__, port,
             ilcore_get_comp_name(h), omx_err);
         return L_FAILED;
     }
@@ -421,17 +418,17 @@ ret_code_t ilcore_enable_port(ilcore_comp_h h, uint32_t port, int wait)
 
     omx_err = OMX_SendCommand(ctx->handle, OMX_CommandPortEnable, port, NULL);
     if(omx_err != OMX_ErrorNone)
-	{
-		DBG_E("%s: Error disable port %d on component %s err = 0x%08x\n", __FUNCTION__, port, ilcore_get_comp_name(h),
+    {
+        DBG_E("%s: Error disable port %d on component %s err = 0x%08x\n", __FUNCTION__, port, ilcore_get_comp_name(h),
             omx_err);
-		return L_FAILED;
-	}
+        return L_FAILED;
+    }
 
     if (wait)
     {
         omx_err = omx_core_comp_wait_command(h, OMX_CommandPortEnable, port, 2000);
         if(omx_err != OMX_ErrorNone)
-		    return L_FAILED;
+            return L_FAILED;
     }
     return L_OK;
 }
@@ -586,12 +583,12 @@ ret_code_t ilcore_setup_tunnel(ilcore_tunnel_h h)
     omx_err = OMX_SetupTunnel(ilcore_get_handle(tunnel->src_comp), tunnel->src_port,
         ilcore_get_handle(tunnel->dst_comp), tunnel->dst_port);
     if(omx_err != OMX_ErrorNone) 
-	{
-		DBG_E("%s: could not setup tunnel src %s port %d dst %s port %d err = 0x%08x\n", __FUNCTION__, 
-			ilcore_get_comp_name(tunnel->src_comp), tunnel->src_port, ilcore_get_comp_name(tunnel->dst_comp),
+    {
+        DBG_E("%s: could not setup tunnel src %s port %d dst %s port %d err = 0x%08x\n", __FUNCTION__, 
+            ilcore_get_comp_name(tunnel->src_comp), tunnel->src_port, ilcore_get_comp_name(tunnel->dst_comp),
             tunnel->dst_port, omx_err);
-		return L_FAILED;
-	}
+        return L_FAILED;
+    }
 
     if (ilcore_enable_port(tunnel->src_comp, tunnel->src_port, 0) != L_OK)
         return L_FAILED;
@@ -602,7 +599,7 @@ ret_code_t ilcore_setup_tunnel(ilcore_tunnel_h h)
         return L_FAILED;
     omx_err = omx_core_comp_wait_command(tunnel->dst_comp, OMX_CommandPortEnable, tunnel->dst_port, 2000);
     if(omx_err != OMX_ErrorNone)
-		return L_FAILED;
+        return L_FAILED;
     
     if (state == OMX_StateLoaded)
     {
@@ -611,7 +608,7 @@ ret_code_t ilcore_setup_tunnel(ilcore_tunnel_h h)
     }
     omx_err = omx_core_comp_wait_command(tunnel->src_comp, OMX_CommandPortEnable, tunnel->src_port, 2000);
     if(omx_err != OMX_ErrorNone)
-		return L_FAILED;
+        return L_FAILED;
 
     return L_OK;
 }
@@ -632,16 +629,16 @@ ret_code_t ilcore_clean_tunnel(ilcore_tunnel_h h)
 
     omx_err = OMX_SetupTunnel(ilcore_get_handle(tunnel->src_comp), tunnel->src_port, NULL, 0);
     if(omx_err != OMX_ErrorNone) 
-	{
-		DBG_E("%s: could not unset tunnel on comp src %s port %d err = 0x%08x\n", __FUNCTION__, 
-			ilcore_get_comp_name(tunnel->src_comp), tunnel->src_port, omx_err);
-	}
+    {
+        DBG_E("%s: could not unset tunnel on comp src %s port %d err = 0x%08x\n", __FUNCTION__, 
+            ilcore_get_comp_name(tunnel->src_comp), tunnel->src_port, omx_err);
+    }
     omx_err = OMX_SetupTunnel(ilcore_get_handle(tunnel->dst_comp), tunnel->dst_port, NULL, 0);
     if(omx_err != OMX_ErrorNone) 
-	{
-		DBG_E("%s: could not unset tunnel on comp dst %s port %d err = 0x%08x\n", __FUNCTION__, 
-			ilcore_get_comp_name(tunnel->dst_comp), tunnel->dst_port, omx_err);
-	}
+    {
+        DBG_E("%s: could not unset tunnel on comp dst %s port %d err = 0x%08x\n", __FUNCTION__, 
+            ilcore_get_comp_name(tunnel->dst_comp), tunnel->dst_port, omx_err);
+    }
 
     return L_OK;
 }

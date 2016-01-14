@@ -17,7 +17,7 @@ static void add_head_priv(list_t *ctx, list_node_t *node)
     node->prev = NULL;
     node->next = ctx->head;
     if (ctx->head)
-    	ctx->head->prev = node;
+        ctx->head->prev = node;
     ctx->head = node;
     ctx->count++;
 }
@@ -28,7 +28,7 @@ static list_node_t *find_tail_priv(list_t *ctx)
 
     tail = ctx->head;
     while (tail->next)
-	tail = tail->next;
+    tail = tail->next;
 
     return tail;
 }
@@ -60,9 +60,9 @@ static list_node_t *remove_tail_priv(list_t *ctx)
 
     ret_node = tail;
     if (tail == ctx->head)
-		ctx->head = NULL;
+        ctx->head = NULL;
     else
-		tail->prev->next = NULL;
+        tail->prev->next = NULL;
     ctx->count--;
 
     return ret_node;
@@ -76,7 +76,7 @@ int slist_init(list_h *h)
 
     ctx = (list_t *)malloc(sizeof(list_t));
     if (!ctx)
-		return -1;
+        return -1;
 
     memset(ctx, 0, sizeof(list_t));
     pthread_mutex_init(&ctx->mutex, NULL);
@@ -90,7 +90,7 @@ void slist_uninit(list_h h)
     list_t *ctx = (list_t *)h;
 
     if (!ctx)
-		return;
+        return;
 
     pthread_mutex_destroy(&ctx->mutex);
     free(ctx);
@@ -103,7 +103,7 @@ int slist_add_head(list_h h, list_node_t *node)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !node)
-		return -1;
+        return -1;
 
     pthread_mutex_lock(&ctx->mutex);
     add_head_priv(ctx, node);
@@ -117,13 +117,13 @@ int slist_add_tail(list_h h, list_node_t *node)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !node)
-		return -1;
+        return -1;
 
     pthread_mutex_lock(&ctx->mutex);
     if (!ctx->head)
     {
-		add_head_priv(ctx, node);
-		goto Exit;
+        add_head_priv(ctx, node);
+        goto Exit;
     }
     add_tail_priv(ctx, node);
 Exit:
@@ -138,7 +138,7 @@ list_node_t *slist_get_remove_head(list_h h)
     list_node_t *ret_node;
 
     if (!ctx || !ctx->head)
-		return NULL;
+        return NULL;
 
     pthread_mutex_lock(&ctx->mutex);
     ret_node = remove_head_priv(ctx);
@@ -155,7 +155,7 @@ list_node_t *slist_get_remove_tail(list_h h)
     list_node_t *ret_node;
 
     if (!ctx || !ctx->head)
-		return NULL;
+        return NULL;
 
     pthread_mutex_lock(&ctx->mutex);
     ret_node = remove_tail_priv(ctx);
@@ -172,33 +172,33 @@ list_node_t *slist_find_remove(list_h h, find_func func, void *user_data)
     list_node_t *tmp;
 
     if (!func)
-		return NULL;
+        return NULL;
 
     pthread_mutex_lock(&ctx->mutex);
     tmp = ctx->head;
     while (tmp)
     {
-		if (func(tmp, user_data))
-			break;
+        if (func(tmp, user_data))
+            break;
 
-		tmp = tmp->next;
-	}
+        tmp = tmp->next;
+    }
     if (!tmp)
-		goto Exit;
+        goto Exit;
 
     if (tmp == ctx->head)
     {
-		remove_head_priv(ctx);
+        remove_head_priv(ctx);
     }
     else if (!tmp->next)
     {
-		remove_tail_priv(ctx);
+        remove_tail_priv(ctx);
     }
     else
     {
-		tmp->prev->next = tmp->next;
-		tmp->next->prev = tmp->prev;
-		ctx->count--;
+        tmp->prev->next = tmp->next;
+        tmp->next->prev = tmp->prev;
+        ctx->count--;
     }
 
     tmp->prev = NULL;
@@ -216,7 +216,7 @@ int slist_get_count(list_h h)
 
     pthread_mutex_lock(&ctx->mutex);
     if (ctx)
-		count = ctx->count;
+        count = ctx->count;
     pthread_mutex_unlock(&ctx->mutex);
 
     return count;
@@ -229,7 +229,7 @@ int list_add_head(list_h h, list_node_t *node)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !node)
-		return -1;
+        return -1;
 
     add_head_priv(ctx, node);
 
@@ -241,12 +241,12 @@ int list_add_tail(list_h h, list_node_t *node)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !node)
-		return -1;
+        return -1;
 
     if (!ctx->head)
     {
-		add_head_priv(ctx, node);
-		goto Exit;
+        add_head_priv(ctx, node);
+        goto Exit;
     }
     add_tail_priv(ctx, node);
 Exit:
@@ -259,12 +259,12 @@ int list_insert_after(list_h h, list_node_t *after, list_node_t *node)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !node)
-		return -1;
+        return -1;
 
     if (!after || !after->next)
     {
-		add_tail_priv(ctx, node);
-		goto Exit;
+        add_tail_priv(ctx, node);
+        goto Exit;
     }
     after->next->prev = node;
     node->next = after->next;
@@ -281,12 +281,12 @@ int list_insert_before(list_h h, list_node_t *before, list_node_t *node)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !node)
-		return -1;
+        return -1;
 
     if (!before || !before->prev)
     {
-		add_head_priv(ctx, node);
-		goto Exit;
+        add_head_priv(ctx, node);
+        goto Exit;
     }
     before->prev->next = node;
     node->prev = before->prev;
@@ -303,7 +303,7 @@ list_node_t *list_get_first(list_h h)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !ctx->head)
-		return NULL;
+        return NULL;
 
     return ctx->head;
 }
@@ -313,7 +313,7 @@ list_node_t *list_get_tail(list_h h)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !ctx->head)
-		return NULL;
+        return NULL;
 
     return find_tail_priv(ctx);
 }
@@ -321,7 +321,7 @@ list_node_t *list_get_tail(list_h h)
 list_node_t *list_get_next(list_node_t *node)
 {
     if (!node)
-		return NULL;
+        return NULL;
 
     return node->next;
 }
@@ -329,7 +329,7 @@ list_node_t *list_get_next(list_node_t *node)
 list_node_t *list_get_priv(list_node_t *node)
 {
     if (!node)
-		return NULL;
+        return NULL;
 
     return node->prev;
 }
@@ -340,7 +340,7 @@ list_node_t *list_remove_head(list_h h)
     list_node_t *ret_node;
 
     if (!ctx || !ctx->head)
-		return NULL;
+        return NULL;
 
     ret_node = remove_head_priv(ctx);
 
@@ -355,7 +355,7 @@ list_node_t *list_remove_tail(list_h h)
     list_node_t *ret_node;
 
     if (!ctx || !ctx->head)
-		return NULL;
+        return NULL;
 
     ret_node = remove_tail_priv(ctx);
 
@@ -369,21 +369,21 @@ int list_remove(list_h h, list_node_t *node)
     list_t *ctx = (list_t *)h;
 
     if (!ctx || !node)
-		return -1;
+        return -1;
 
     if (node == ctx->head)
     {
-		remove_head_priv(ctx);
+        remove_head_priv(ctx);
     }
     else if (!node->next)
     {
-		remove_tail_priv(ctx);
+        remove_tail_priv(ctx);
     }
     else
     {
-		node->prev->next = node->next;
-		node->next->prev = node->prev;
-		ctx->count--;
+        node->prev->next = node->next;
+        node->next->prev = node->prev;
+        ctx->count--;
     }
 
     node->prev = NULL;
@@ -398,15 +398,15 @@ list_node_t *list_find(list_h h, find_func func, void *user_data)
     list_node_t *tmp = NULL;
 
     if (!func)
-	return NULL;
+    return NULL;
 
     tmp = ctx->head;
     while (tmp)
-	{
-		if (func(tmp, user_data))
-			break;
+    {
+        if (func(tmp, user_data))
+            break;
 
-		tmp = tmp->next;
+        tmp = tmp->next;
     }
 
     return tmp;
@@ -432,7 +432,7 @@ int list_get_count(list_h h)
     int count = 0;
 
     if (ctx)
-		count = ctx->count;
+        count = ctx->count;
 
     return count;
 }

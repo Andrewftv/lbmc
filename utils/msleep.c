@@ -11,7 +11,7 @@
  
 typedef struct {
     pthread_mutex_t mutex;
-	pthread_cond_t cond;
+    pthread_cond_t cond;
 } msleep_ctx_t;
  
 int msleep_init(msleep_h *h)
@@ -20,15 +20,15 @@ int msleep_init(msleep_h *h)
     if (!ctx)
         return -1;
  
-	memset(ctx, 0, sizeof(msleep_ctx_t));
+    memset(ctx, 0, sizeof(msleep_ctx_t));
 
     if (pthread_mutex_init(&ctx->mutex, NULL))
         goto Error;
  
     if (pthread_cond_init(&ctx->cond, NULL))
-		goto Error;
+        goto Error;
 
-	*h = ctx;
+    *h = ctx;
  
     return 0;
  
@@ -41,35 +41,35 @@ void msleep_uninit(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
 
-	pthread_cond_destroy(&ctx->cond); 
+    pthread_cond_destroy(&ctx->cond); 
     pthread_mutex_destroy(&ctx->mutex);
-	free(ctx);
+    free(ctx);
 }
  
 int msleep_wait(msleep_h h, int timeout)
 {
     struct timespec endtime;
-	int rc = MSLEEP_INTERRUPT;
+    int rc = MSLEEP_INTERRUPT;
  
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
  
     if (timeout == INFINITE_WAIT)
     {
         pthread_mutex_lock(&ctx->mutex);
-		pthread_cond_wait(&ctx->cond, &ctx->mutex);
+        pthread_cond_wait(&ctx->cond, &ctx->mutex);
         pthread_mutex_unlock(&ctx->mutex);
         return MSLEEP_INTERRUPT;
     }
  
-	clock_gettime(CLOCK_REALTIME, &endtime);
-	util_time_add(&endtime, timeout);
+    clock_gettime(CLOCK_REALTIME, &endtime);
+    util_time_add(&endtime, timeout);
  
     pthread_mutex_lock(&ctx->mutex);
-	if (pthread_cond_timedwait(&ctx->cond, &ctx->mutex, &endtime))
-		rc = MSLEEP_TIMEOUT;
-	pthread_mutex_unlock(&ctx->mutex);
+    if (pthread_cond_timedwait(&ctx->cond, &ctx->mutex, &endtime))
+        rc = MSLEEP_TIMEOUT;
+    pthread_mutex_unlock(&ctx->mutex);
     
-	return rc;
+    return rc;
 }
  
 int msleep_wakeup(msleep_h h)
@@ -81,7 +81,7 @@ int msleep_wakeup(msleep_h h)
 
 int msleep_wakeup_broadcast(msleep_h h)
 {
-	msleep_ctx_t *ctx = (msleep_ctx_t *)h;
+    msleep_ctx_t *ctx = (msleep_ctx_t *)h;
  
     return pthread_cond_broadcast(&ctx->cond);
 }

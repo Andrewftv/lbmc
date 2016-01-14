@@ -89,7 +89,7 @@ static ret_code_t audio_player_uninit(player_ctx_t *ctx)
 static void *player_routine(void *args)
 {
     size_t size;
-	uint8_t *buf;
+    uint8_t *buf;
     ret_code_t rc;
     int64_t pts;
     int first_frame = 1;
@@ -125,15 +125,15 @@ static void *player_routine(void *args)
     while(ctx->running)
     {
         if (!ctx->running)
-			break;
+            break;
 
-		if (ctx->pause)
-		{
-			usleep(100000);
-			continue;
-		}
+        if (ctx->pause)
+        {
+            usleep(100000);
+            continue;
+        }
 
-		buf = decode_get_next_audio_buffer(ctx->demuxer, &size, (void *)&hdr, &pts, &rc);
+        buf = decode_get_next_audio_buffer(ctx->demuxer, &size, (void *)&hdr, &pts, &rc);
         if (!buf)
         {
             if (rc != L_STOPPING)
@@ -200,7 +200,7 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h)
     *player_ctx = ctx;
 
     /* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
-	if (pthread_create(&ctx->task, NULL, player_routine, ctx) < 0)
+    if (pthread_create(&ctx->task, NULL, player_routine, ctx) < 0)
         rc = L_FAILED;
 
     return rc;
@@ -237,7 +237,7 @@ void audio_player_stop(audio_player_h h)
 
     ctx->running = 0;
     /* Waiting for player task */
-	pthread_join(ctx->task, NULL);
+    pthread_join(ctx->task, NULL);
     
     free(ctx);
 }

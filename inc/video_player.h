@@ -16,22 +16,22 @@ typedef enum {
 } player_state_t;
 
 typedef struct {
-	video_player_h priv;
+    video_player_h priv;
 
-	pthread_t task;
-	player_state_t state;
-	int running;
+    pthread_t task;
+    player_state_t state;
+    int running;
 
-	struct timespec base_time;
-	int64_t corrected_pts;
+    struct timespec base_time;
+    int64_t corrected_pts;
     int64_t last_pts;
 
-	demux_ctx_h demux_ctx;
+    demux_ctx_h demux_ctx;
 
-	ret_code_t (*init)(video_player_h ctx);
-	void (*uninit)(video_player_h ctx);
-	ret_code_t (*draw_frame)(video_player_h ctx, uint8_t *buf);
-	void (*idle)(video_player_h ctx);
+    ret_code_t (*init)(video_player_h ctx);
+    void (*uninit)(video_player_h ctx);
+    ret_code_t (*draw_frame)(video_player_h ctx, uint8_t *buf);
+    void (*idle)(video_player_h ctx);
 } video_player_context;
 
 void *player_main_routine(void *args);

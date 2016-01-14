@@ -18,23 +18,23 @@
 #include "timeutils.h"
 
 typedef struct {
-	pthread_t task;
+    pthread_t task;
 
-	int pause;
+    int pause;
     int running;
 
     int64_t corrected_pts;
     int64_t last_pts;
     struct timespec base_time;
 
-	demux_ctx_h audio_ctx;
+    demux_ctx_h audio_ctx;
 } pulse_player_ctx_t;
 
 static int init_context(pulse_player_ctx_t *ctx)
 {
-	memset(ctx, 0, sizeof(pulse_player_ctx_t));
+    memset(ctx, 0, sizeof(pulse_player_ctx_t));
 
-	return 0;
+    return 0;
 }
 
 static void uninit_context(pulse_player_ctx_t *ctx)
@@ -43,75 +43,75 @@ static void uninit_context(pulse_player_ctx_t *ctx)
 
 static pa_sample_format_t av2pa(enum AVSampleFormat src_fmt)
 {
-	pa_sample_format_t dst_fmt = PA_SAMPLE_INVALID;
+    pa_sample_format_t dst_fmt = PA_SAMPLE_INVALID;
 
-	switch(src_fmt)
-	{
-	case AV_SAMPLE_FMT_U8:
-		dst_fmt = PA_SAMPLE_U8;
-		break;
-	case AV_SAMPLE_FMT_S16:
-		dst_fmt = PA_SAMPLE_S16LE;
-		break;
-	case AV_SAMPLE_FMT_S32:
-		dst_fmt = PA_SAMPLE_S32LE;
-		break;
-	case AV_SAMPLE_FMT_FLT:
-		dst_fmt = PA_SAMPLE_FLOAT32LE;
-		break;
-	case AV_SAMPLE_FMT_DBL:
-		dst_fmt = PA_SAMPLE_FLOAT32LE; /* ? */
-		break;
-	default:
-		break;
-	}
+    switch(src_fmt)
+    {
+    case AV_SAMPLE_FMT_U8:
+        dst_fmt = PA_SAMPLE_U8;
+        break;
+    case AV_SAMPLE_FMT_S16:
+        dst_fmt = PA_SAMPLE_S16LE;
+        break;
+    case AV_SAMPLE_FMT_S32:
+        dst_fmt = PA_SAMPLE_S32LE;
+        break;
+    case AV_SAMPLE_FMT_FLT:
+        dst_fmt = PA_SAMPLE_FLOAT32LE;
+        break;
+    case AV_SAMPLE_FMT_DBL:
+        dst_fmt = PA_SAMPLE_FLOAT32LE; /* ? */
+        break;
+    default:
+        break;
+    }
 
-	return dst_fmt;
+    return dst_fmt;
 }
 
 static void *player_routine(void *args)
 {
-	pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)args;
+    pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)args;
     pa_sample_spec ss;
-	pa_simple *s = NULL;
-	int error;
-	size_t size;
-	uint8_t *buf;
+    pa_simple *s = NULL;
+    int error;
+    size_t size;
+    uint8_t *buf;
     int64_t pts;
-	enum AVSampleFormat fmt;
+    enum AVSampleFormat fmt;
     int first_pkt = 1;
     ret_code_t rc;
 
-	ss.rate = decode_get_sample_rate(ctx->audio_ctx);
-	ss.channels = decode_get_channels(ctx->audio_ctx);
-	fmt = decode_get_sample_format(ctx->audio_ctx);
-	ss.format = av2pa(fmt);
+    ss.rate = decode_get_sample_rate(ctx->audio_ctx);
+    ss.channels = decode_get_channels(ctx->audio_ctx);
+    fmt = decode_get_sample_format(ctx->audio_ctx);
+    ss.format = av2pa(fmt);
 
-	DBG_I("Player task started\n");
-	ctx->running = 1;
+    DBG_I("Player task started\n");
+    ctx->running = 1;
 
-	DBG_I("Open pulse audio. format: %s rate: %d channels: %d\n",
-		pa_sample_format_to_string(ss.format), ss.rate, ss.channels);
+    DBG_I("Open pulse audio. format: %s rate: %d channels: %d\n",
+        pa_sample_format_to_string(ss.format), ss.rate, ss.channels);
 
-	if (!(s = pa_simple_new(NULL, "LBMC", PA_STREAM_PLAYBACK, NULL, "playback",
-		&ss, NULL, NULL, &error)))
-	{
+    if (!(s = pa_simple_new(NULL, "LBMC", PA_STREAM_PLAYBACK, NULL, "playback",
+        &ss, NULL, NULL, &error)))
+    {
         DBG_E("pa_simple_new() failed: %s\n", pa_strerror(error));
         goto finish;
     }
 
-	while(ctx->running)
-	{
-		if (!ctx->running)
-			break;
+    while(ctx->running)
+    {
+        if (!ctx->running)
+            break;
 
-		if (ctx->pause)
-		{
-			usleep(100000);
-			continue;
-		}
+        if (ctx->pause)
+        {
+            usleep(100000);
+            continue;
+        }
 
-		buf = decode_get_next_audio_buffer(ctx->audio_ctx, &size, NULL, &pts, &rc);
+        buf = decode_get_next_audio_buffer(ctx->audio_ctx, &size, NULL, &pts, &rc);
         if (!buf)
         {
             if (rc != L_STOPPING)
@@ -148,24 +148,24 @@ static void *player_routine(void *args)
             }
         }
 
-		if (pa_simple_write(s, buf, size, &error) < 0) 
-		{
+        if (pa_simple_write(s, buf, size, &error) < 0) 
+        {
             DBG_E("pa_simple_write() failed: %s\n", pa_strerror(error));
             break;
         }
 Drop:
-		decode_release_audio_buffer(ctx->audio_ctx);
-	}
+        decode_release_audio_buffer(ctx->audio_ctx);
+    }
 
 finish:
 
-	if (pa_simple_drain(s, &error) < 0)
+    if (pa_simple_drain(s, &error) < 0)
         DBG_E("pa_simple_drain() failed: %s\n", pa_strerror(error));
-	pa_simple_free(s);
+    pa_simple_free(s);
 
-	ctx->running = 0;
-	DBG_I("Player task finished\n");
-	return NULL;
+    ctx->running = 0;
+    DBG_I("Player task finished\n");
+    return NULL;
 }
 
 int audio_player_is_runnung(audio_player_h h)
@@ -177,33 +177,33 @@ int audio_player_is_runnung(audio_player_h h)
 
 void audio_player_pause(audio_player_h player_ctx)
 {
-	pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)player_ctx;
+    pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)player_ctx;
 
     if (ctx->pause)
         clock_gettime(CLOCK_MONOTONIC, &ctx->base_time);
     else
         ctx->corrected_pts = ctx->last_pts;
-	ctx->pause = !ctx->pause;
+    ctx->pause = !ctx->pause;
 }
 
 ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h)
 {
-	pulse_player_ctx_t *ctx;
+    pulse_player_ctx_t *ctx;
     ret_code_t rc = L_OK;
 
-	ctx = (pulse_player_ctx_t *)malloc(sizeof(pulse_player_ctx_t));
-	if (!ctx)
-	{
-		DBG_E("Mamory allocation failed\n");
-		return L_FAILED;
-	}
+    ctx = (pulse_player_ctx_t *)malloc(sizeof(pulse_player_ctx_t));
+    if (!ctx)
+    {
+        DBG_E("Mamory allocation failed\n");
+        return L_FAILED;
+    }
 
-	init_context(ctx);
-	ctx->audio_ctx = h;
+    init_context(ctx);
+    ctx->audio_ctx = h;
 
-	*player_ctx = ctx;
-	/* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
-	if (pthread_create(&ctx->task, NULL, player_routine, ctx) < 0)
+    *player_ctx = ctx;
+    /* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
+    if (pthread_create(&ctx->task, NULL, player_routine, ctx) < 0)
         rc = L_FAILED;
 
     return rc;
@@ -211,17 +211,17 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h)
 
 void audio_player_stop(audio_player_h player_ctx)
 {
-	pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)player_ctx;
+    pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)player_ctx;
 
-	if (!ctx)
-		return;
+    if (!ctx)
+        return;
 
-	ctx->running = 0;
-	/* Waiting for player task */
-	pthread_join(ctx->task, NULL);
+    ctx->running = 0;
+    /* Waiting for player task */
+    pthread_join(ctx->task, NULL);
 
-	uninit_context(ctx);
+    uninit_context(ctx);
 
-	free(ctx);
+    free(ctx);
 }
 

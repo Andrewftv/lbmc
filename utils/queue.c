@@ -6,7 +6,7 @@
 
 typedef struct omx_node_s {
     struct omx_node_s *next;
-	void *data;
+    void *data;
 } omx_node_t;
 
 typedef struct {
@@ -18,15 +18,15 @@ typedef struct {
 
 static void destroy_queue(omx_queue_t *q)
 {
-    omx_node_t *node, *tmp;	
+    omx_node_t *node, *tmp;    
 
     pthread_mutex_lock(&q->mutex);
     node = q->first_node;
     while (node)
     {
-		tmp = node;
-		node = node->next;
-		free(tmp);
+        tmp = node;
+        node = node->next;
+        free(tmp);
     }
     pthread_mutex_unlock(&q->mutex);
 }
@@ -37,11 +37,11 @@ int omx_queue_init(omx_queue_h *h)
 
     queue = (omx_queue_t *)malloc(sizeof(omx_queue_t));
     if (!queue)
-		return -1;
+        return -1;
 
     memset(queue, 0, sizeof(omx_queue_t));
     if (pthread_mutex_init(&queue->mutex, NULL))
-		goto Error;
+        goto Error;
 
     *h = queue;
 
@@ -57,8 +57,8 @@ void omx_queue_uninit(omx_queue_h h)
     omx_queue_t *queue = (omx_queue_t *)h;
 
     if (!queue)
-		return;
-	
+        return;
+    
     destroy_queue(queue);
 
     pthread_mutex_destroy(&queue->mutex);
@@ -68,25 +68,25 @@ void omx_queue_uninit(omx_queue_h h)
 int omx_queue_push(omx_queue_h h, void *data)
 {
     omx_queue_t *q = (omx_queue_t *)h;
-	omx_node_t *node;
+    omx_node_t *node;
 
-	node = (omx_node_t *)malloc(sizeof(omx_node_t));
-	if (!node)
-		return -1;
+    node = (omx_node_t *)malloc(sizeof(omx_node_t));
+    if (!node)
+        return -1;
 
     node->next = NULL;
-	node->data = data;
+    node->data = data;
 
     pthread_mutex_lock(&q->mutex);
     if (!q->first_node)
     {
-		q->first_node = node;
-		q->last_node = node;
+        q->first_node = node;
+        q->last_node = node;
     }
     else
     {
-		q->last_node->next = node;
-		q->last_node = node;
+        q->last_node->next = node;
+        q->last_node = node;
     }
     q->count++;
     pthread_mutex_unlock(&q->mutex);
@@ -98,23 +98,23 @@ void *omx_queue_pop(omx_queue_h h)
 {
     omx_node_t *node;
     omx_queue_t *q = (omx_queue_t *)h;
-	void *data;
+    void *data;
 
     pthread_mutex_lock(&q->mutex);
     if (!q->first_node)
     {
-		pthread_mutex_unlock(&q->mutex);
-    	return NULL;
+        pthread_mutex_unlock(&q->mutex);
+        return NULL;
     }
     node = q->first_node;
     q->first_node = node->next;
     if (!q->first_node)
-		q->last_node = NULL;
+        q->last_node = NULL;
     q->count--;
     pthread_mutex_unlock(&q->mutex);
 
     data = node->data;
-	free(node);
+    free(node);
 
     return data;
 }
