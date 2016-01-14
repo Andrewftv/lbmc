@@ -18,10 +18,10 @@ typedef void* ilcore_comp_h;
 typedef void* ilcore_tunnel_h;
 
 typedef struct omx_event {
-	list_node_t node;
-	OMX_EVENTTYPE eEvent;
-	OMX_U32 nData1;
-	OMX_U32 nData2;
+    list_node_t node;
+    OMX_EVENTTYPE eEvent;
+    OMX_U32 nData1;
+    OMX_U32 nData2;
 } omx_event_t;
 
 /* Event handle callback */
