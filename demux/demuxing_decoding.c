@@ -25,6 +25,7 @@
 typedef struct {
 	uint8_t **data;
 	size_t size;
+    size_t buff_size;
 	int nb_samples;
 	int max_nb_samples;
     int64_t pts_ms; /* PTS in ms from a stream begin */
@@ -472,7 +473,7 @@ ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)
     if (!ctx->audio_ctx->buffer[0].data[0])
         return L_FAILED;
 
-    *size = ctx->audio_ctx->buffer[0].size;
+    *size = ctx->audio_ctx->buffer[0].buff_size;
     *count = AUDIO_BUFFERS;
 
     return L_OK;
@@ -746,7 +747,7 @@ static ret_code_t init_audio_buffers(app_audio_ctx_t *ctx)
        		DBG_E("Could not allocate destination samples\n");
 			break;
    		}
-        ctx->buffer[i].size = dst_linesize;
+        ctx->buffer[i].buff_size = dst_linesize;
         DBG_V("Buffer address is %p size=%d\n", ctx->buffer[i].data[0], dst_linesize);
 	}
 

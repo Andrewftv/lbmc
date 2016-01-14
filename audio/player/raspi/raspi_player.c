@@ -149,6 +149,7 @@ static void *player_routine(void *args)
             hdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
         }
 
+        DBG_V("New packet. size=%d pts=0x%llx\n", size, pts);
         hdr->pAppPrivate = ctx;
         hdr->nOffset = 0;
         hdr->nFilledLen = size;
@@ -159,7 +160,7 @@ static void *player_routine(void *args)
         err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->render), hdr);
         if (err != OMX_ErrorNone)
         {
-            DBG_E("OMX_EmptyThisBuffer failed\n");
+            DBG_E("OMX_EmptyThisBuffer failed. err=0x%08x\n", err);
             break;
         
         }
