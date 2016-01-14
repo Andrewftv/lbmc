@@ -7,9 +7,15 @@
 #include "errors.h"
 #include "list.h"
 
-#define IL_AUDIO_RENDER_IN_PORT  100
+/* OMX clock ports */
+#define IL_CLOCK_PORT1              80
+
+/* OMX audio renderer ports */
+#define IL_AUDIO_RENDER_IN_PORT     100
+#define IL_AUDIO_RENDER_CLOCK_PORT  101
 
 typedef void* ilcore_comp_h;
+typedef void* ilcore_tunnel_h;
 
 typedef struct omx_event {
 	list_node_t node;
@@ -18,16 +24,37 @@ typedef struct omx_event {
 	OMX_U32 nData2;
 } omx_event_t;
 
+/* Event handle callback */
+OMX_ERRORTYPE il_event_handler(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent, 
+    OMX_U32 nData1, OMX_U32 nData2, OMX_PTR pEventData);
+/* Buffer callbacks */
+OMX_ERRORTYPE il_empty_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer);
+OMX_ERRORTYPE il_fill_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer);
+
+/* Initialization */
 ret_code_t ilcore_init_comp(ilcore_comp_h *h, OMX_CALLBACKTYPE *cb, char *name);
 void ilcore_uninit_comp(ilcore_comp_h h);
 
+/* Tunneling */
+ret_code_t ilcore_create_tunnel(ilcore_tunnel_h *h, ilcore_comp_h src_comp, uint32_t src_port, ilcore_comp_h dst_comp,
+    uint32_t dst_port);
+void ilcore_destroy_tunnel(ilcore_tunnel_h h);
+
+ret_code_t ilcore_flush_tunnel(ilcore_tunnel_h h);
+ret_code_t ilcore_setup_tunnel(ilcore_tunnel_h h);
+ret_code_t ilcore_clean_tunnel(ilcore_tunnel_h h);
+
+/**/
 ret_code_t ilcore_add_comp_event(ilcore_comp_h comp, OMX_EVENTTYPE eEvent, OMX_U32 nData1, OMX_U32 nData2);
+ret_code_t ilcore_disable_port(ilcore_comp_h comp, uint32_t port, int wait);
+ret_code_t ilcore_enable_port(ilcore_comp_h comp, uint32_t port, int wait);
 ret_code_t ilcore_disable_all_ports(ilcore_comp_h comp);
 ret_code_t ilcore_set_state(ilcore_comp_h h, OMX_STATETYPE state);
 OMX_HANDLETYPE ilcore_get_handle(ilcore_comp_h h);
 ret_code_t ilcore_get_state(ilcore_comp_h h, OMX_STATETYPE *state);
 OMX_ERRORTYPE omx_core_comp_wait_command(ilcore_comp_h h, OMX_U32 command, OMX_U32 nData2, long timeout);
 ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count);
+char *ilcore_get_comp_name(ilcore_comp_h h);
 
 #endif
 

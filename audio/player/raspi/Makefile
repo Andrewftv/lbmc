@@ -1,7 +1,7 @@
 TOP_DIR=../../..
 include $(TOP_DIR)/envir.mak
 
-SRC:=raspi_player.c
+SRC:=raspi_player.c omxaudio_render.c
 
 OBJ_PATH:=$(TOP_DIR)/$(OBJ_DIR)
 include $(TOP_DIR)/Makefile.include
