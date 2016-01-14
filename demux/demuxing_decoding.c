@@ -253,6 +253,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         memset(vctx, 0, sizeof(app_video_ctx_t));
         vctx->stream_idx = stream_index;
         vctx->free_buffs = VIDEO_BUFFERS;
+        vctx->subtitle_stream_idx = -1;
 
         video_stream = ctx->fmt_ctx->streams[stream_index];
         vctx->codec = video_stream->codec;
