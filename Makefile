@@ -3,8 +3,10 @@ include $(TOP_DIR)/envir.mak
 
 DISTCFGDIR=configs
 DISTCFG=.distconfig
+CONF_FILES := $(wildcard $(DISTCFGDIR)/*.cfg)
 
 TARGET=lbmc
+
 SUBDIRS := utils audio demux
 ifdef CONFIG_VIDEO
 SUBDIRS+=video
@@ -19,6 +21,20 @@ all: init $(TARGET)
 
 init:
 	@if test ! -d $(OBJ_DIR); then mkdir $(OBJ_DIR); fi
+	@if test ! -f $(DISTCFG); then \
+		echo ""; \
+		echo "Project is not configured. Run \"make config DIST=<dist-name>\""; \
+		echo ""; \
+		echo "Existing configurations:"; \
+		echo ""; \
+		for file in $(CONF_FILES); do \
+			conf=$${file#*\/}; \
+			conf=$${conf%.*}; \
+			echo $$conf; \
+		done; \
+		echo ""; \
+		exit 1; \
+	fi
 
 .PHONY: $(SUBDIRS)
 $(SUBDIRS):

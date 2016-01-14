@@ -14,7 +14,6 @@ do
 		if [ -n "$name" ]; then       # Ignore empty strings
     		param=${name%=*}
     		value=${name#*\=}
-    		echo "$param : $value"
     		echo "$param=$value" >> $config_mak
 			cflags+="-D"
 			cflags+="$param=$value"
