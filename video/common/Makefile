@@ -2,6 +2,9 @@ TOP_DIR=../..
 include $(TOP_DIR)/envir.mak
 
 SRC:=ft_text.c video_player.c
+ifdef CONFIG_RASPBERRY_PI
+SRC+=hdmi.c
+endif
 
 OBJ_PATH:=$(TOP_DIR)/$(OBJ_DIR)
 include $(TOP_DIR)/Makefile.include

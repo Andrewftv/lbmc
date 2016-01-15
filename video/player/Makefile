@@ -11,6 +11,10 @@ ifdef CONFIG_SDL2_VIDEO
 SUBDIRS+=sdl2
 endif
 
+ifdef CONFIG_RASPBERRY_PI
+SUBDIRS+=raspi
+endif
+
 OBJ_PATH:=.
 include $(TOP_DIR)/Makefile.include
 

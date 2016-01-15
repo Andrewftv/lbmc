@@ -76,6 +76,9 @@ int main(int argc, char **argv)
 	demux_ctx_h demux_ctx = NULL;
 	char *src_filename = NULL;
 	audio_player_h aplayer_ctx = NULL;
+#ifdef CONFIG_RASPBERRY_PI
+    TV_DISPLAY_STATE_T tv_state;
+#endif
 #ifdef CONFIG_VIDEO
 	video_player_context vplayer_ctx;
 #endif
@@ -106,8 +109,13 @@ int main(int argc, char **argv)
 		goto end;
 
 #ifdef CONFIG_VIDEO  
+#ifdef CONFIG_RASPBERRY_PI
+    hdmi_init_display(&tv_state);
+#endif
 	if (decode_is_video(demux_ctx))
 		video_player_start(&vplayer_ctx, demux_ctx);
+    else
+        memset(&vplayer_ctx, 0, sizeof(video_player_context));
 #endif
 	if (decode_is_audio(demux_ctx))
 		audio_player_start(&aplayer_ctx, demux_ctx);
@@ -156,6 +164,9 @@ end:
 	DBG_I("Done\n");
 #ifdef CONFIG_VIDEO
 	DBG_I("Stopping video player... \n");
+#ifdef CONFIG_RASPBERRY_PI
+    hdmi_uninit_display(&tv_state);
+#endif
 	video_player_stop(&vplayer_ctx);
 	DBG_I("Done\n");
 #endif

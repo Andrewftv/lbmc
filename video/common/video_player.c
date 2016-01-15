@@ -34,9 +34,11 @@ void video_player_stop(video_player_context *player_ctx)
 
     player_ctx->running = 0;
     /* Waiting for player task */
-    pthread_join(player_ctx->task, NULL);
+    if (player_ctx->task)
+        pthread_join(player_ctx->task, NULL);
 
-    free(player_ctx->priv);
+    if (player_ctx->priv)
+        free(player_ctx->priv);
 }
 
 void *player_main_routine(void *args)
