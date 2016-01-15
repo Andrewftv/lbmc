@@ -13,6 +13,9 @@
 #include "omxclock.h"
 #include "omxaudio_render.h"
 
+#define PAUSE_SLEEP_US          (100 * 1000)
+#define BUFF_DONE_TIMEOUT_MS    1000
+
 typedef struct {
     pthread_t task;
 
@@ -93,6 +96,7 @@ static void *player_routine(void *args)
     ret_code_t rc;
     int64_t pts;
     int first_frame = 1;
+    int ret;
     OMX_ERRORTYPE err;
     OMX_CONFIG_BRCMAUDIODESTINATIONTYPE ar_dest;
     OMX_BUFFERHEADERTYPE *hdr;
@@ -129,7 +133,7 @@ static void *player_routine(void *args)
 
         if (ctx->pause)
         {
-            usleep(100000);
+            usleep(PAUSE_SLEEP_US);
             continue;
         }
 
@@ -137,7 +141,7 @@ static void *player_routine(void *args)
         if (!buf)
         {
             if (rc != L_STOPPING)
-                DBG_E("Nothing to play\n");
+                DBG_V("Nothing to play\n");
             usleep(10000);
             continue;
         }
@@ -167,11 +171,18 @@ static void *player_routine(void *args)
         if (ctx->buff_done)
             continue;
 
-        if (msleep_wait(ctx->buffer_done, 1000) != MSLEEP_INTERRUPT)
+        do
         {
-            DBG_E("Event buffer done not reseived\n");
-            break;
-        }
+            if ((ret = msleep_wait(ctx->buffer_done, BUFF_DONE_TIMEOUT_MS)) != MSLEEP_INTERRUPT)
+            {
+                if (!ctx->pause || ret != MSLEEP_TIMEOUT)
+                {
+                    DBG_E("Event buffer done not received\n");
+                    break;
+                }
+                usleep(PAUSE_SLEEP_US);
+            }
+        } while (ctx->pause && ret != MSLEEP_INTERRUPT);
     }
 
     ctx->running = 0;
