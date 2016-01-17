@@ -56,19 +56,30 @@ typedef struct {
 
 #ifdef CONFIG_VIDEO
 typedef struct {
+#ifdef CONFIG_VIDEO_HW_DECODE
+    uint8_t *data;
+    int buff_size;  /* Allocation size */
+#else
     uint8_t *buffer[4];
     int linesize[4];
-    int size;
+#endif
+    int size;       /* Data size */
     int64_t pts_ms; /* PTS in ms from a stream begin */
 } video_buffer_t;
 
 typedef struct {
+#ifndef CONFIG_VIDEO_HW_DECODE
     AVCodecContext *codec;
     struct SwsContext *sws;
+#endif
     AVStream *st;
 
     msleep_h empty_buff;
     msleep_h full_buff;
+
+    int width;
+    int height;
+    enum AVPixelFormat pix_fmt;
 
     video_buffer_t buff[VIDEO_BUFFERS];
     int curr_read_buff;
@@ -238,7 +249,10 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
     {
         app_video_ctx_t *vctx;
         AVStream *video_stream = NULL;
-        int rc, i;
+        int i;
+#ifndef CONFIG_VIDEO_HW_DECODE
+        int rc;
+#endif
 
         streams++;
 
@@ -256,12 +270,28 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         vctx->subtitle_stream_idx = -1;
 
         video_stream = ctx->fmt_ctx->streams[stream_index];
+#ifndef CONFIG_VIDEO_HW_DECODE
         vctx->codec = video_stream->codec;
+#endif
         vctx->st = video_stream;
+        vctx->width = video_stream->codec->width;
+        vctx->height = video_stream->codec->height;
+        vctx->pix_fmt = video_stream->codec->pix_fmt;
 
-        DBG_I("SRC: Video size %dx%d. pix_fmt=%s\n", vctx->codec->width, vctx->codec->height, 
-            av_get_pix_fmt_name(vctx->codec->pix_fmt));
-    
+        DBG_I("SRC: Video size %dx%d. pix_fmt=%s\n", vctx->width, vctx->height, av_get_pix_fmt_name(vctx->pix_fmt));
+#ifdef CONFIG_VIDEO_HW_DECODE
+        for (i = 0; i < VIDEO_BUFFERS; i++)
+        {
+            /* TODO. Probably need memory alliment allocation */
+            vctx->buff[i].data = (uint8_t *)malloc(100 * 1024);
+            if (!vctx->buff[i].data)
+            {
+                DBG_E("Could not allocate destination video buffer\n");
+                return L_FAILED;
+            }
+            vctx->buff[i].buff_size = 100 * 1024;
+        }
+#else
         /* Allocate destination image with same resolution and RGBA pixel format */
         for (i = 0; i < VIDEO_BUFFERS; i++)
         {
@@ -282,6 +312,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
             DBG_E("Can not allocate scale format\n");
             return -1;
         }
+#endif
         msleep_init(&vctx->empty_buff);
         msleep_init(&vctx->full_buff);
 
@@ -372,6 +403,10 @@ void decode_uninit(demux_ctx_h h)
 
         msleep_uninit(vctx->full_buff);
         msleep_uninit(vctx->empty_buff);
+#ifdef CONFIG_VIDEO_HW_DECODE
+        for (i = 0; i < VIDEO_BUFFERS; i++)
+            free(vctx->buff[i].data);
+#else
         if (vctx->codec)
             avcodec_close(vctx->codec);
         if (vctx->sws)
@@ -379,6 +414,7 @@ void decode_uninit(demux_ctx_h h)
 
         for (i = 0; i < VIDEO_BUFFERS; i++)
             av_freep(&vctx->buff[i].buffer[0]);
+#endif
 
         free(vctx);
     }
@@ -573,7 +609,11 @@ uint8_t *decode_get_next_video_buffer(demux_ctx_h h, size_t *size, int64_t *pts,
         }
     }
     index = ctx->video_ctx->curr_play_buff;
+#ifdef CONFIG_VIDEO_HW_DECODE
+    buf = ctx->video_ctx->buff[index].data;
+#else
     buf = ctx->video_ctx->buff[index].buffer[0];
+#endif
     *size = ctx->video_ctx->buff[index].size;
     *pts = ctx->video_ctx->buff[index].pts_ms;
     ctx->video_ctx->curr_play_buff++;
@@ -600,8 +640,8 @@ int devode_get_video_size(demux_ctx_h hd, int *w, int *h)
     if (!ctx || !ctx->video_ctx)
         return -1;
 
-    *w = ctx->video_ctx->codec->width;
-    *h = ctx->video_ctx->codec->height;
+    *w = ctx->video_ctx->width;
+    *h = ctx->video_ctx->height;
 
     return 0;
 }
@@ -893,11 +933,51 @@ ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt)
     if (!ctx || !ctx->video_ctx)
         return L_FAILED;
 
-    *pix_fmt = ctx->video_ctx->codec->pix_fmt;
+    *pix_fmt = ctx->video_ctx->pix_fmt;
 
     return L_OK;
 }
 
+#ifdef CONFIG_VIDEO_HW_DECODE
+static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
+{
+    int index = ctx->curr_read_buff;
+
+    if (!pkt->data || !pkt->size)
+    {
+        *got_frame = 0;
+        return 0;
+    }
+
+    *got_frame = 1;
+    if (!ctx->free_buffs)
+        timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
+
+    if (pkt->size <= ctx->buff[index].buff_size)
+    {
+        /* TODO. Redesign with out memcpy */
+        memcpy(ctx->buff[index].data, pkt->data, pkt->size);
+        ctx->buff[index].size = pkt->size;
+    }
+    else
+    {
+        /* TODO */
+        DBG_F("Packet is too large. Need buffer reallocation");
+    }
+
+    /* TODO. Not shure it it correct */
+    ctx->buff[index].pts_ms = AV_NOPTS_VALUE;
+
+    ctx->free_buffs--;
+    ctx->curr_read_buff++;
+    if (ctx->curr_read_buff >= VIDEO_BUFFERS)
+        ctx->curr_read_buff = 0;
+
+    signal_buffer(ctx->full_buff);
+
+    return 0;
+}
+#else
 static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
 {
     int rc;
@@ -953,6 +1033,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
 
     return 0;
 }
+#endif
 
 static int decode_subtitle_packet(app_video_ctx_t *ctx, AVPacket *pkt)
 {
@@ -1001,7 +1082,10 @@ static ret_code_t open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, 
 
     if ((stream_index = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0)) < 0)
     {
-        DBG_E("Could not find %s stream in input file\n", av_get_media_type_string(type));
+        if (type == AVMEDIA_TYPE_SUBTITLE)
+            DBG_I("Could not find %s stream in input file\n", av_get_media_type_string(type));
+        else
+            DBG_E("Could not find %s stream in input file\n", av_get_media_type_string(type));
         return L_FAILED;
     }
         
