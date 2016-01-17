@@ -9,6 +9,19 @@
 
 /* OMX clock ports */
 #define IL_CLOCK_PORT1              80
+#define IL_CLOCK_PORT2              81
+
+/* OMX video decoder ports */
+#define IL_VIDEO_DECODER_IN_PORT    130
+#define IL_VIDEO_DECODER_OUT_PORT   131
+
+/* OMX video scheduler ports */
+#define IL_SCHED_VIDEO_IN_PORT      10
+#define IL_SCHED_VIDEO_OUT_PORT     11
+#define IL_SCHED_CLOCK_PORT         12
+
+/* OMX video render port */
+#define IL_VIDEO_RENDER_IN_PORT     90
 
 /* OMX audio renderer ports */
 #define IL_AUDIO_RENDER_IN_PORT     100

@@ -391,7 +391,7 @@ static void gl_idle(video_player_h h)
     glutMainLoopEvent();
 }
 
-ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h)
+ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, void *clock)
 {
     player_ctx_t *ctx;
     ret_code_t rc = L_OK;

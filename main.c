@@ -8,6 +8,8 @@
 #ifdef CONFIG_RASPBERRY_PI
 #include "bcm_host.h"
 #include <IL/OMX_Broadcom.h>
+#include "ilcore.h"
+#include "omxclock.h"
 #endif
 
 #include "log.h"
@@ -78,6 +80,9 @@ int main(int argc, char **argv)
 	audio_player_h aplayer_ctx = NULL;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
+    ilcore_comp_h clock = NULL;
+#else
+    void *clock = NULL;
 #endif
 #ifdef CONFIG_VIDEO
 	video_player_context vplayer_ctx;
@@ -111,14 +116,18 @@ int main(int argc, char **argv)
 #ifdef CONFIG_VIDEO  
 #ifdef CONFIG_RASPBERRY_PI
     hdmi_init_display(&tv_state);
+
+    clock = create_omx_clock();
+    if (!clock)
+        goto end;
 #endif
 	if (decode_is_video(demux_ctx))
-		video_player_start(&vplayer_ctx, demux_ctx);
+		video_player_start(&vplayer_ctx, demux_ctx, clock);
     else
         memset(&vplayer_ctx, 0, sizeof(video_player_context));
 #endif
 	if (decode_is_audio(demux_ctx))
-		audio_player_start(&aplayer_ctx, demux_ctx);
+		audio_player_start(&aplayer_ctx, demux_ctx, clock);
     
 	if (decode_start(demux_ctx))
         goto end;
@@ -173,6 +182,9 @@ end:
 	decode_uninit(demux_ctx);
 #ifdef CONFIG_RASPBERRY_PI
     DBG_I("Deinit OMX components\n");
+
+    if (clock)
+        destroy_omx_clock(clock);
 
     if (OMX_Deinit() != OMX_ErrorNone)
         DBG_E("OMX_deinit failed\n");

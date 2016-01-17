@@ -73,6 +73,7 @@ typedef struct {
     struct SwsContext *sws;
 #endif
     AVStream *st;
+    enum AVCodecID codec_id;
 
     msleep_h empty_buff;
     msleep_h full_buff;
@@ -277,6 +278,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         vctx->width = video_stream->codec->width;
         vctx->height = video_stream->codec->height;
         vctx->pix_fmt = video_stream->codec->pix_fmt;
+        vctx->codec_id = video_stream->codec->codec_id;
 
         DBG_I("SRC: Video size %dx%d. pix_fmt=%s\n", vctx->width, vctx->height, av_get_pix_fmt_name(vctx->pix_fmt));
 #ifdef CONFIG_VIDEO_HW_DECODE
@@ -938,6 +940,18 @@ ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt)
     return L_OK;
 }
 
+ret_code_t decode_get_codec_id(demux_ctx_h h, enum AVCodecID *codec_id)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx || !ctx->video_ctx)
+        return L_FAILED;
+
+    *codec_id = ctx->video_ctx->codec_id;
+
+    return L_OK;
+}
+
 #ifdef CONFIG_VIDEO_HW_DECODE
 static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
 {
@@ -962,7 +976,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     else
     {
         /* TODO */
-        DBG_F("Packet is too large. Need buffer reallocation");
+        DBG_F("Packet is too large. Size = %d Need buffer reallocation\n", pkt->size);
     }
 
     /* TODO. Not shure it it correct */

@@ -142,7 +142,7 @@ static int draw_frame_sdl(video_player_h h, uint8_t *buf)
     return 0;
 }
 
-ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h)
+ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, void *clock)
 {
     player_ctx_t *ctx;
     ret_code_t rc = L_OK;

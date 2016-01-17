@@ -4,6 +4,7 @@
 #define AUDIO_BUFFERS 64
 #define VIDEO_BUFFERS 2
 
+#include <libavcodec/avcodec.h>
 #include <libavutil/pixfmt.h>
 #include "errors.h"
 
@@ -27,6 +28,7 @@ void decode_release_video_buffer(demux_ctx_h h);
 int decode_is_video(demux_ctx_h h);
 int devode_get_video_size(demux_ctx_h hd, int *w, int *h);
 ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt);
+ret_code_t decode_get_codec_id(demux_ctx_h h, enum AVCodecID *codec_id);
 #endif
 
 /* Output audio format. Used for a player configuration */

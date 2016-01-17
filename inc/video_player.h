@@ -43,7 +43,7 @@ typedef struct {
 
 void *player_main_routine(void *args);
 
-ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h);
+ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, void *clock);
 void video_player_stop(video_player_context *player_ctx);
 void video_player_pause(video_player_context *player_ctx);
 

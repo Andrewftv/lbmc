@@ -54,10 +54,6 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
     if (omxaudio_render_setup_buffers(ctx->render, ctx->demuxer) != L_OK)
         return L_FAILED;
 
-    ctx->clock = create_omx_clock();
-    if (!ctx->clock)
-        return L_FAILED;
-
     /* Create tunnel */
     if (ilcore_create_tunnel(&ctx->clock_tunnel, ctx->clock, IL_CLOCK_PORT1, ctx->render,
         IL_AUDIO_RENDER_CLOCK_PORT) != L_OK)
@@ -81,7 +77,6 @@ static ret_code_t audio_player_uninit(player_ctx_t *ctx)
     ilcore_clean_tunnel(ctx->clock_tunnel);
     ilcore_destroy_tunnel(ctx->clock_tunnel);
 
-    destroy_omx_clock(ctx->clock);
     destroy_omxaudio_render(ctx->render);
 
     msleep_uninit(ctx->buffer_done);
@@ -193,7 +188,7 @@ static void *player_routine(void *args)
     return NULL;
 }
 
-ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h)
+ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h, ilcore_comp_h clock)
 {
     player_ctx_t *ctx;
     ret_code_t rc = L_OK;
@@ -207,6 +202,7 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h)
 
     memset(ctx, 0, sizeof(player_ctx_t));
     ctx->demuxer =  h;
+    ctx->clock = clock;
 
     *player_ctx = ctx;
 
