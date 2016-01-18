@@ -42,7 +42,7 @@ $(SUBDIRS):
 
 $(TARGET): $(SUBDIRS) $(OBJS)
 	@echo "[LD ] " $(TARGET)
-	$(PREFIX)$(CXX) $(LDFLAGS) -o $(TARGET) $(shell find $(OBJ_DIR) -name '*.o')
+	$(PREFIX)$(CXX) $(LDFLAGS) -o $(TARGET) $(shell find $(OBJ_DIR) -name '*.o') $(shell find $(OBJ_DIR) -name '*.a')
 
 config:
 	@if test ! -f $(DISTCFG); then \
@@ -53,6 +53,9 @@ config:
 	fi
 
 clean:
+	@for dir in $(SUBDIRS); do \
+		make clean -C $$dir; \
+	done
 	@echo "Remove objects"
 	@rm -rf $(OBJ_DIR)
 	@echo "Remove target"

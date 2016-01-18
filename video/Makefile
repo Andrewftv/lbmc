@@ -15,7 +15,10 @@ $(SUBDIRS):
 	$(PREFIX)make -C $@
 
 clean:
-	@echo "Clean gui direcrory"
+	@for dir in $(SUBDIRS); do \
+		make clean -C $$dir; \
+	done
+	@echo "Clean video direcrory"
 
 include $(TOP_DIR)/rules.mak
 
