@@ -68,6 +68,8 @@ ret_code_t ilcore_get_state(ilcore_comp_h h, OMX_STATETYPE *state);
 OMX_ERRORTYPE omx_core_comp_wait_command(ilcore_comp_h h, OMX_U32 command, OMX_U32 nData2, long timeout);
 ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count);
 char *ilcore_get_comp_name(ilcore_comp_h h);
+ret_code_t ilcore_set_param(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data);
+ret_code_t ilcore_get_param(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data);
 
 #endif
 

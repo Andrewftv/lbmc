@@ -22,8 +22,12 @@ static ret_code_t raspi_init(video_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
     enum AVCodecID codec_id;
-    //OMX_VIDEO_CODINGTYPE coding_type;
+    OMX_VIDEO_CODINGTYPE coding_type;
+    OMX_VIDEO_PARAM_PORTFORMATTYPE format;
+    OMX_PARAM_PORTDEFINITIONTYPE port_param;
+    OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE concan;
     OMX_CALLBACKTYPE cb;
+    int fps_rate, fps_scale, width, height;
 
     if (decode_get_codec_id(ctx->demux, &codec_id) != L_OK)
     {   
@@ -35,44 +39,44 @@ static ret_code_t raspi_init(video_player_h h)
     {
     case AV_CODEC_ID_H264:
         DBG_I("Use codec: H264\n");
-        //coding_type = OMX_VIDEO_CodingAVC;
+        coding_type = OMX_VIDEO_CodingAVC;
         break;
     case AV_CODEC_ID_MPEG4:
         DBG_I("Use codec: MPEG4\n");
-        //coding_type = OMX_VIDEO_CodingMPEG4;
+        coding_type = OMX_VIDEO_CodingMPEG4;
         break;
     case AV_CODEC_ID_MPEG1VIDEO:
     case AV_CODEC_ID_MPEG2VIDEO:
         DBG_I("Use codec: MPEG2\n");
-        //coding_type = OMX_VIDEO_CodingMPEG2;
+        coding_type = OMX_VIDEO_CodingMPEG2;
         break;
     case AV_CODEC_ID_H263:
         DBG_I("Use codec: H263\n");
-        //coding_type = OMX_VIDEO_CodingMPEG4;
+        coding_type = OMX_VIDEO_CodingMPEG4;
         break;
     case AV_CODEC_ID_VP6:
     case AV_CODEC_ID_VP6F:
     case AV_CODEC_ID_VP6A:
         DBG_I("Use codec: VP6\n");
-        //coding_type = OMX_VIDEO_CodingVP6;
+        coding_type = OMX_VIDEO_CodingVP6;
         break;
     case AV_CODEC_ID_VP8:
         DBG_I("Use codec: VP8\n");
-        //coding_type = OMX_VIDEO_CodingVP8;
+        coding_type = OMX_VIDEO_CodingVP8;
         break;
     case AV_CODEC_ID_THEORA:
         DBG_I("Use codec: THEORA\n");
-        //coding_type = OMX_VIDEO_CodingTheora;
+        coding_type = OMX_VIDEO_CodingTheora;
         break;
     case AV_CODEC_ID_MJPEG:
     case AV_CODEC_ID_MJPEGB:
         DBG_I("Use codec: MJPEG\n");
-        //coding_type = OMX_VIDEO_CodingMJPEG;
+        coding_type = OMX_VIDEO_CodingMJPEG;
         break;
     case AV_CODEC_ID_VC1:
     case AV_CODEC_ID_WMV3:
         DBG_I("Use codec: WMV\n");
-        //coding_type = OMX_VIDEO_CodingWMV;
+        coding_type = OMX_VIDEO_CodingWMV;
         break;
     default:
         DBG_E("Unknown codec ID: %d\n", codec_id);
@@ -116,6 +120,68 @@ static ret_code_t raspi_init(video_player_h h)
 
     if (ilcore_setup_tunnel(ctx->tunnel_clock))
         goto Error;
+
+    if (ilcore_set_state(ctx->decoder, OMX_StateIdle))
+        goto Error;
+
+    memset(&format, 0, sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE));
+    format.nSize = sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE);
+    format.nVersion.nVersion = OMX_VERSION;
+    format.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
+    format.eCompressionFormat = coding_type;
+    
+    decode_get_frame_rate(ctx->demux, &fps_rate, &fps_scale);
+    DBG_I("FPS: rate = %d scale = %d\n", fps_rate, fps_scale);
+
+    if (fps_rate > 0 && fps_scale > 0)
+        format.xFramerate = (long long)(1 << 16) * fps_rate / fps_scale;
+    else
+        format.xFramerate = 25 * (1 << 16);
+
+    if (ilcore_set_param(ctx->decoder, OMX_IndexParamVideoPortFormat, &format))
+        goto Error;
+
+    memset(&port_param, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
+    port_param.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
+    port_param.nVersion.nVersion = OMX_VERSION;
+    port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
+
+    if (ilcore_get_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
+        goto Error;
+
+    port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
+    port_param.nBufferCountActual = 2;
+    port_param.nBufferSize = (100 * 1024);
+
+    devode_get_video_size(ctx->demux, &width, &height);
+
+    port_param.format.video.nFrameWidth  = width;
+	port_param.format.video.nFrameHeight = height;
+
+    if (ilcore_set_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
+        goto Error;
+
+    memset(&concan, 0, sizeof(OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE));
+    concan.nSize = sizeof(OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE);
+    concan.nVersion.nVersion = OMX_VERSION;
+    concan.bStartWithValidFrame = OMX_FALSE;
+
+    if (ilcore_set_param(ctx->decoder, OMX_IndexParamBrcmVideoDecodeErrorConcealment, &concan))
+        goto Error;
+
+    /* TODO. Not shure */
+    if (codec_id == AV_CODEC_ID_H264)
+    {
+        OMX_CONFIG_BOOLEANTYPE time_stamp_mode;
+
+        memset(&time_stamp_mode, 0, sizeof(OMX_CONFIG_BOOLEANTYPE));
+        time_stamp_mode.nSize = sizeof(OMX_CONFIG_BOOLEANTYPE);
+        time_stamp_mode.nVersion.nVersion = OMX_VERSION;
+        time_stamp_mode.bEnabled = OMX_TRUE;
+
+        if (ilcore_set_param(ctx->decoder, OMX_IndexParamBrcmVideoTimestampFifo, &time_stamp_mode))
+            goto Error;
+    }
 
     return L_OK;
 

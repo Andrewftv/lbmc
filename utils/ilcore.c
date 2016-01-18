@@ -433,6 +433,36 @@ ret_code_t ilcore_enable_port(ilcore_comp_h h, uint32_t port, int wait)
     return L_OK;
 }
 
+ret_code_t ilcore_set_param(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
+{
+    OMX_ERRORTYPE err;
+    ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
+
+    err = OMX_SetParameter(ctx->handle, index, data);
+    if(err != OMX_ErrorNone) 
+	{
+		DBG_E("%s: %s failed with err = 0x%x\n", __FUNCTION__, ctx->name, err);
+        return L_FAILED;
+	}
+
+    return L_OK;
+}
+
+ret_code_t ilcore_get_param(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
+{
+    OMX_ERRORTYPE err;
+    ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
+
+    err = OMX_GetParameter(ctx->handle, index, data);
+    if(err != OMX_ErrorNone) 
+	{
+		DBG_E("%s: %s failed with err = 0x%x\n", __FUNCTION__, ctx->name, err);
+        return L_FAILED;
+	}
+
+    return L_OK;
+}
+
 ret_code_t ilcore_init_comp(ilcore_comp_h *h, OMX_CALLBACKTYPE *cb, char *name)
 {
     OMX_ERRORTYPE err;

@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 #include <libavutil/opt.h>
 #include <libavutil/imgutils.h>
@@ -80,6 +81,8 @@ typedef struct {
 
     int width;
     int height;
+    int fps_rate;
+    int fps_scale;
     enum AVPixelFormat pix_fmt;
 
     video_buffer_t buff[VIDEO_BUFFERS];
@@ -279,19 +282,31 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         vctx->height = video_stream->codec->height;
         vctx->pix_fmt = video_stream->codec->pix_fmt;
         vctx->codec_id = video_stream->codec->codec_id;
+       
+        DBG_I("Codec extradata size is: %d\n", video_stream->codec->extradata_size);
+ 
+        if (video_stream->avg_frame_rate.den && video_stream->avg_frame_rate.num)
+        {
+            vctx->fps_rate = video_stream->avg_frame_rate.num;
+            vctx->fps_scale = video_stream->avg_frame_rate.den;
+        }
+        else if (video_stream->r_frame_rate.num && video_stream->r_frame_rate.den)
+        {
+            vctx->fps_rate = video_stream->r_frame_rate.num;
+            vctx->fps_scale = video_stream->r_frame_rate.den;
+        }
 
         DBG_I("SRC: Video size %dx%d. pix_fmt=%s\n", vctx->width, vctx->height, av_get_pix_fmt_name(vctx->pix_fmt));
 #ifdef CONFIG_VIDEO_HW_DECODE
         for (i = 0; i < VIDEO_BUFFERS; i++)
         {
-            /* TODO. Probably need memory alliment allocation */
-            vctx->buff[i].data = (uint8_t *)malloc(100 * 1024);
-            if (!vctx->buff[i].data)
+            if (posix_memalign ((void **)&vctx->buff[i].data, 16, 100 * 1024))
             {
                 DBG_E("Could not allocate destination video buffer\n");
                 return L_FAILED;
             }
             vctx->buff[i].buff_size = 100 * 1024;
+            DBG_I("Video buffer %p\n", vctx->buff[i].data);
         }
 #else
         /* Allocate destination image with same resolution and RGBA pixel format */
@@ -948,6 +963,19 @@ ret_code_t decode_get_codec_id(demux_ctx_h h, enum AVCodecID *codec_id)
         return L_FAILED;
 
     *codec_id = ctx->video_ctx->codec_id;
+
+    return L_OK;
+}
+
+ret_code_t decode_get_frame_rate(demux_ctx_h h, int *rate, int *scale)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx || !ctx->video_ctx)
+        return L_FAILED;
+
+    *rate = ctx->video_ctx->fps_rate;
+    *scale = ctx->video_ctx->fps_scale;
 
     return L_OK;
 }
