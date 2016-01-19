@@ -30,6 +30,7 @@ int devode_get_video_size(demux_ctx_h hd, int *w, int *h);
 ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt);
 ret_code_t decode_get_codec_id(demux_ctx_h h, enum AVCodecID *codec_id);
 ret_code_t decode_get_frame_rate(demux_ctx_h h, int *rate, int *scale);  
+uint8_t *decode_get_codec_extra_data(demux_ctx_h h, int *size);
 #endif
 
 /* Output audio format. Used for a player configuration */

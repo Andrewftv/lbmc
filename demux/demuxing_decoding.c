@@ -83,6 +83,8 @@ typedef struct {
     int height;
     int fps_rate;
     int fps_scale;
+    uint8_t *codec_ext_data;
+    int codec_ext_data_size;
     enum AVPixelFormat pix_fmt;
 
     video_buffer_t buff[VIDEO_BUFFERS];
@@ -284,6 +286,8 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         vctx->codec_id = video_stream->codec->codec_id;
        
         DBG_I("Codec extradata size is: %d\n", video_stream->codec->extradata_size);
+        vctx->codec_ext_data = video_stream->codec->extradata;
+        vctx->codec_ext_data_size =  video_stream->codec->extradata_size;
  
         if (video_stream->avg_frame_rate.den && video_stream->avg_frame_rate.num)
         {
@@ -978,6 +982,20 @@ ret_code_t decode_get_frame_rate(demux_ctx_h h, int *rate, int *scale)
     *scale = ctx->video_ctx->fps_scale;
 
     return L_OK;
+}
+
+uint8_t *decode_get_codec_extra_data(demux_ctx_h h, int *size)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx || !ctx->video_ctx)
+    {
+        *size = 0;
+        return NULL;
+    }
+    *size = ctx->video_ctx->codec_ext_data_size;
+
+    return ctx->video_ctx->codec_ext_data;
 }
 
 #ifdef CONFIG_VIDEO_HW_DECODE
