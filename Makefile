@@ -42,7 +42,8 @@ $(SUBDIRS):
 
 $(TARGET): $(SUBDIRS) $(OBJS)
 	@echo "[LD ] " $(TARGET)
-	$(PREFIX)$(CXX) $(LDFLAGS) -o $(TARGET) $(shell find $(OBJ_DIR) -name '*.o') $(shell find $(OBJ_DIR) -name '*.a')
+	$(PREFIX)$(CXX) $(LDFLAGS) -o $(TARGET) -Wl,--start-group $(shell find $(OBJ_DIR) -name '*.a') \
+		$(shell find $(OBJ_DIR) -name '*.o') -Wl,--end-group
 
 config:
 	@if test ! -f $(DISTCFG); then \

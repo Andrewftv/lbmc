@@ -5,6 +5,7 @@ ifeq ($(SILENT),1)
 	PREFIX=@
 endif
 
+ARFLAGS=rc
 ifdef CONFIG_RASPBERRY_PI
 TOOLCHAIN:=/opt/arm-bcm2708/arm-bcm2708hardfp-linux-gnueabi
 SYSROOT:=$(TOOLCHAIN)/arm-bcm2708hardfp-linux-gnueabi/sysroot

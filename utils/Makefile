@@ -6,13 +6,20 @@ ifdef CONFIG_RASPBERRY_PI
 SRC += ilcore.c omxclock.c
 endif
 
-OBJ_PATH:=$(TOP_DIR)/$(OBJ_DIR)
+LIBA=libutils.a
+OBJ_PATH:=.
 include $(TOP_DIR)/Makefile.include
 
-all: $(OBJS)
+all: $(OBJS) $(LIBA)
+
+$(LIBA):
+	@echo "[AR ] " $(LIBA)
+	$(PREFIX)$(AR) $(ARFLAGS) $(TOP_DIR)/$(OBJ_DIR)/$(LIBA) $(OBJS)
 
 clean:
 	@echo "Clean utils directory"
+	@rm -f *.o
+	@rm -f *.d
 
 include $(TOP_DIR)/rules.mak
 
