@@ -3,22 +3,20 @@
 #include <string.h>
 #include <pthread.h>
 #include "queue.h"
-
-typedef struct omx_node_s {
-    struct omx_node_s *next;
-    void *data;
-} omx_node_t;
+#include "msleep.h"
 
 typedef struct {
-    omx_node_t *first_node;
-    omx_node_t *last_node;
+    queue_node_t *first_node;
+    queue_node_t *last_node;
     pthread_mutex_t mutex;
     int count;
-} omx_queue_t;
 
-static void destroy_queue(omx_queue_t *q)
+    msleep_h wait;
+} queue_t;
+
+static void destroy_queue(queue_t *q)
 {
-    omx_node_t *node, *tmp;    
+    queue_node_t *node, *tmp;    
 
     pthread_mutex_lock(&q->mutex);
     node = q->first_node;
@@ -31,51 +29,48 @@ static void destroy_queue(omx_queue_t *q)
     pthread_mutex_unlock(&q->mutex);
 }
 
-int omx_queue_init(omx_queue_h *h)
+queue_err_t queue_init(queue_h *h)
 {
-    omx_queue_t *queue;
+    queue_t *queue;
 
-    queue = (omx_queue_t *)malloc(sizeof(omx_queue_t));
+    queue = (queue_t *)malloc(sizeof(queue_t));
     if (!queue)
-        return -1;
+        return QUE_FAILED;
 
-    memset(queue, 0, sizeof(omx_queue_t));
+    memset(queue, 0, sizeof(queue_t));
     if (pthread_mutex_init(&queue->mutex, NULL))
         goto Error;
 
+    msleep_init(&queue->wait);
+
     *h = queue;
 
-    return 0;
+    return QUE_OK;
 
 Error:
-    omx_queue_uninit(queue);
-    return -1;
+    queue_uninit(queue);
+    return QUE_FAILED;
 }
 
-void omx_queue_uninit(omx_queue_h h)
+void queue_uninit(queue_h h)
 {
-    omx_queue_t *queue = (omx_queue_t *)h;
+    queue_t *queue = (queue_t *)h;
 
     if (!queue)
         return;
     
+    msleep_uninit(queue->wait);
     destroy_queue(queue);
 
     pthread_mutex_destroy(&queue->mutex);
     free(queue);
 }
 
-int omx_queue_push(omx_queue_h h, void *data)
+queue_err_t queue_push(queue_h h, queue_node_t *node)
 {
-    omx_queue_t *q = (omx_queue_t *)h;
-    omx_node_t *node;
-
-    node = (omx_node_t *)malloc(sizeof(omx_node_t));
-    if (!node)
-        return -1;
+    queue_t *q = (queue_t *)h;
 
     node->next = NULL;
-    node->data = data;
 
     pthread_mutex_lock(&q->mutex);
     if (!q->first_node)
@@ -91,14 +86,28 @@ int omx_queue_push(omx_queue_h h, void *data)
     q->count++;
     pthread_mutex_unlock(&q->mutex);
 
-    return 0;
+    msleep_wakeup(q->wait);
+
+    return QUE_OK;
 }
 
-void *omx_queue_pop(omx_queue_h h)
+/* FIXME. Incorrect implementation */
+queue_node_t *queue_pop_timed(queue_h h, int timeout)
 {
-    omx_node_t *node;
-    omx_queue_t *q = (omx_queue_t *)h;
-    void *data;
+    queue_node_t *node;
+    queue_t *q = (queue_t *)h;
+
+    node = queue_pop(h);
+    if (!node)
+        msleep_wait(q->wait, timeout);
+
+    return queue_pop(h);
+}
+
+queue_node_t *queue_pop(queue_h h)
+{
+    queue_node_t *node;
+    queue_t *q = (queue_t *)h;
 
     pthread_mutex_lock(&q->mutex);
     if (!q->first_node)
@@ -113,16 +122,13 @@ void *omx_queue_pop(omx_queue_h h)
     q->count--;
     pthread_mutex_unlock(&q->mutex);
 
-    data = node->data;
-    free(node);
-
-    return data;
+    return node;
 }
 
-int omx_queue_count(omx_queue_h h)
+int queue_count(queue_h h)
 {
     int count;
-    omx_queue_t *q = (omx_queue_t *)h;
+    queue_t *q = (queue_t *)h;
 
     pthread_mutex_lock(&q->mutex);
     count = q->count;

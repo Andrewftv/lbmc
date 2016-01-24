@@ -5,13 +5,24 @@
 extern "C" {
 #endif
 
-typedef void* omx_queue_h;
+typedef enum {
+    QUE_OK = 0,
+    QUE_TIMEOUT = 1,
+    QUE_FAILED = -1
+} queue_err_t;
 
-int omx_queue_init(omx_queue_h *h);
-void omx_queue_uninit(omx_queue_h h);
-int omx_queue_push(omx_queue_h h, void *node);
-void *omx_queue_pop(omx_queue_h h);
-int omx_queue_count(omx_queue_h h);
+typedef void* queue_h;
+
+typedef struct queue_node_s {
+    struct  queue_node_s *next;
+}  queue_node_t;
+
+queue_err_t queue_init(queue_h *h);
+void queue_uninit(queue_h h);
+queue_err_t queue_push(queue_h h, queue_node_t *node);
+queue_node_t *queue_pop(queue_h h);
+queue_node_t *queue_pop_timed(queue_h h, int timeout);
+int queue_count(queue_h h);
 
 #ifdef __cplusplus
 }
