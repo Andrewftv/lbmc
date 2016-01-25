@@ -350,7 +350,7 @@ static void gl_set_viewport(player_ctx_t *ctx)
     }
 }
 
-static ret_code_t gl_draw_frame(video_player_h h, uint8_t *buf)
+static ret_code_t gl_draw_frame(video_player_h h, video_buffer_t *buff)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
@@ -358,7 +358,7 @@ static ret_code_t gl_draw_frame(video_player_h h, uint8_t *buf)
       
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(glGetUniformLocation(ctx->sp, "tex"), 0);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ctx->width, ctx->height, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ctx->width, ctx->height, GL_RGBA, GL_UNSIGNED_BYTE, buff->buffer[0]);
 
 #ifdef TEXT_RENDERER
     vertices[0] = -1.0; vertices[1] = 1.0;
@@ -411,6 +411,8 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
 
     memset(ctx, 0, sizeof(player_ctx_t));
     player_ctx->priv = ctx;
+
+    decode_start_read(h);
 
     if (devode_get_video_size(h, &width, &height))
     {

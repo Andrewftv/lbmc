@@ -88,6 +88,10 @@ void *player_main_routine(void *args)
                     player_ctx->idle(player_ctx->priv);
                 continue;
             }
+            else if (rc == L_STOPPING)
+            {
+                break;
+            }
             else if (rc == L_OK)
             {
                 DBG_E("Incorrect state\n");
@@ -100,10 +104,10 @@ void *player_main_routine(void *args)
             clock_gettime(CLOCK_MONOTONIC, &player_ctx->base_time);
             first_pkt = 0;
         }
-        else if (pts != AV_NOPTS_VALUE)
+        else if (buf->pts_ms != AV_NOPTS_VALUE)
         {
             struct timespec curr_time;
-            int diff, pts_ms = (int)pts - player_ctx->corrected_pts;
+            int diff, pts_ms = (int)buf->pts_ms - player_ctx->corrected_pts;
 
             clock_gettime(CLOCK_MONOTONIC, &curr_time);
             diff = util_time_sub(&curr_time, &player_ctx->base_time);
@@ -114,7 +118,7 @@ void *player_main_routine(void *args)
                 DBG_V("Going to sleep for %d ms\n", diff);
                 usleep(diff * 1000);
             }
-            player_ctx->last_pts = pts;
+            player_ctx->last_pts = buf->pts_ms;
         }
 #endif
         //if (buf->pts_ms != AV_NOPTS_VALUE)

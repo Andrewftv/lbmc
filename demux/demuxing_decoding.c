@@ -313,14 +313,20 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         /* Allocate destination image with same resolution and RGBA pixel format */
         for (i = 0; i < VIDEO_BUFFERS; i++)
         {
-            rc = av_image_alloc(vctx->buff[i].buffer, vctx->buff[i].linesize, vctx->codec->width, vctx->codec->height,
+            video_buffer_t *vbuff;        
+
+            vbuff = (video_buffer_t *)malloc(sizeof(video_buffer_t));
+
+            rc = av_image_alloc(vbuff->buffer, vbuff->linesize, vctx->codec->width, vctx->codec->height,
                 AV_PIX_FMT_RGBA, 1);
             if (rc < 0)
             {
                 DBG_E("Could not allocate destination video buffer\n");
                 return L_FAILED;
             }
-            vctx->buff[i].size = rc;
+            vbuff->size = rc;
+
+            queue_push(vctx->free_buff, (queue_node_t *)vbuff);
         }
         /* Create scale context */
         vctx->sws = sws_getContext(vctx->codec->width, vctx->codec->height, vctx->codec->pix_fmt, vctx->codec->width,
@@ -416,7 +422,6 @@ void decode_uninit(demux_ctx_h h)
 #ifdef CONFIG_VIDEO
     if (ctx->video_ctx)
     {
-        //int i;
         video_buffer_t *buff;
         app_video_ctx_t *vctx = ctx->video_ctx;
 
@@ -439,9 +444,16 @@ void decode_uninit(demux_ctx_h h)
         if (vctx->sws)
             sws_freeContext(vctx->sws);
 
-        for (i = 0; i < VIDEO_BUFFERS; i++)
-            av_freep(&vctx->buff[i].buffer[0]);
-
+        while ((buff = (video_buffer_t *)queue_pop(vctx->free_buff)) != NULL)
+        {
+            av_freep(&buff->buffer[0]);
+            free(buff);
+        }
+        while ((buff = (video_buffer_t *)queue_pop(vctx->fill_buff)) != NULL)
+        {
+            av_freep(&buff->buffer[0]);
+            free(buff);
+        }
 #endif
         queue_uninit(vctx->free_buff);
         queue_uninit(vctx->fill_buff);
@@ -1042,7 +1054,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
 static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
 {
     int rc;
-    int index = ctx->curr_read_buff;
+    video_buffer_t *buff;
 
     rc = avcodec_decode_video2(ctx->codec, frame, got_frame, pkt);
     if (rc < 0)
@@ -1069,11 +1081,15 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
         av_ts2timestr(av_frame_get_best_effort_timestamp(frame), &ctx->st->time_base),
         ts2ms(&ctx->codec->time_base, av_frame_get_best_effort_timestamp(frame)));
 
-    if (!ctx->free_buffs)
+    buff = (video_buffer_t *)queue_pop(ctx->free_buff);
+    if (!buff)
+    {
         timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
+        buff = (video_buffer_t *)queue_pop(ctx->free_buff);
+    }
 
     rc = sws_scale(ctx->sws, (const uint8_t * const*)frame->data, frame->linesize, 0, ctx->codec->height,
-        ctx->buff[index].buffer, ctx->buff[index].linesize);
+        buff->buffer, buff->linesize);
     if (rc < 0)
     {
         DBG_E("sws_scale failed\n");
@@ -1081,15 +1097,11 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     }
     
     if(pkt->dts != AV_NOPTS_VALUE)
-        ctx->buff[index].pts_ms = ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame));
+        buff->pts_ms = ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame));
     else
-        ctx->buff[index].pts_ms = AV_NOPTS_VALUE;
+        buff->pts_ms = AV_NOPTS_VALUE;
 
-    ctx->free_buffs--;
-    ctx->curr_read_buff++;
-    if (ctx->curr_read_buff >= VIDEO_BUFFERS)
-        ctx->curr_read_buff = 0;
-
+    queue_push(ctx->fill_buff, (queue_node_t *)buff);
     signal_buffer(ctx->full_buff);
 
     return 0;
