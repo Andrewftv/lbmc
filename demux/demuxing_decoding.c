@@ -619,8 +619,6 @@ video_buffer_t *decode_get_free_buffer(demux_ctx_h h)
     return vbuff;
 }
 
-#include <time.h>
-
 video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
