@@ -20,6 +20,7 @@
 #include "video_player.h"
 #include "timeutils.h"
 #include "msleep.h"
+#include "queue.h"
 
 #define SAMPLE_PER_BUFFER 4096
 
@@ -57,18 +58,6 @@ typedef struct {
 
 #ifdef CONFIG_VIDEO
 typedef struct {
-#ifdef CONFIG_VIDEO_HW_DECODE
-    uint8_t *data;
-    int buff_size;  /* Allocation size */
-#else
-    uint8_t *buffer[4];
-    int linesize[4];
-#endif
-    int size;       /* Data size */
-    int64_t pts_ms; /* PTS in ms from a stream begin */
-} video_buffer_t;
-
-typedef struct {
 #ifndef CONFIG_VIDEO_HW_DECODE
     AVCodecContext *codec;
     struct SwsContext *sws;
@@ -87,10 +76,8 @@ typedef struct {
     int codec_ext_data_size;
     enum AVPixelFormat pix_fmt;
 
-    video_buffer_t buff[VIDEO_BUFFERS];
-    int curr_read_buff;
-    int curr_play_buff;
-    int free_buffs;
+    queue_h free_buff;
+    queue_h fill_buff;
 
     int subtitle_stream_idx;
     int stream_idx;
@@ -105,6 +92,8 @@ typedef struct {
 #ifdef CONFIG_VIDEO
     app_video_ctx_t *video_ctx;
 #endif
+
+    int pause;
 
     pthread_t task;
     int stop_decode;
@@ -237,7 +226,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         DBG_E("Memory allocation failed\n");
         return L_FAILED;
     }
-
+    ctx->pause = 1;
     /* open input file, and allocate format context */
     if (avformat_open_input(&ctx->fmt_ctx, src_file, NULL, NULL) < 0)
     {
@@ -272,7 +261,8 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
 
         memset(vctx, 0, sizeof(app_video_ctx_t));
         vctx->stream_idx = stream_index;
-        vctx->free_buffs = VIDEO_BUFFERS;
+        queue_init(&vctx->free_buff);
+        queue_init(&vctx->fill_buff);
         vctx->subtitle_stream_idx = -1;
 
         video_stream = ctx->fmt_ctx->streams[stream_index];
@@ -304,13 +294,20 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
 #ifdef CONFIG_VIDEO_HW_DECODE
         for (i = 0; i < VIDEO_BUFFERS; i++)
         {
-            if (posix_memalign ((void **)&vctx->buff[i].data, 16, 100 * 1024))
+            video_buffer_t *vbuff;        
+
+            vbuff = (video_buffer_t *)malloc(sizeof(video_buffer_t));
+
+            if (posix_memalign ((void **)&vbuff->data, 16, 200 * 1024))
             {
                 DBG_E("Could not allocate destination video buffer\n");
                 return L_FAILED;
             }
-            vctx->buff[i].buff_size = 100 * 1024;
-            DBG_I("Video buffer %p\n", vctx->buff[i].data);
+            vbuff->buff_size = 200 * 1024;
+            vbuff->number = i;
+            DBG_I("Video buffer %p\n", vbuff->data);
+
+            queue_push(vctx->free_buff, (queue_node_t *)vbuff);
         }
 #else
         /* Allocate destination image with same resolution and RGBA pixel format */
@@ -419,14 +416,23 @@ void decode_uninit(demux_ctx_h h)
 #ifdef CONFIG_VIDEO
     if (ctx->video_ctx)
     {
-        int i;
+        //int i;
+        video_buffer_t *buff;
         app_video_ctx_t *vctx = ctx->video_ctx;
 
         msleep_uninit(vctx->full_buff);
         msleep_uninit(vctx->empty_buff);
 #ifdef CONFIG_VIDEO_HW_DECODE
-        for (i = 0; i < VIDEO_BUFFERS; i++)
-            free(vctx->buff[i].data);
+        while ((buff = (video_buffer_t *)queue_pop(vctx->free_buff)) != NULL)
+        {
+            free(buff->data);
+            free(buff);
+        }
+        while ((buff = (video_buffer_t *)queue_pop(vctx->fill_buff)) != NULL)
+        {
+            free(buff->data);
+            free(buff);
+        }
 #else
         if (vctx->codec)
             avcodec_close(vctx->codec);
@@ -435,7 +441,10 @@ void decode_uninit(demux_ctx_h h)
 
         for (i = 0; i < VIDEO_BUFFERS; i++)
             av_freep(&vctx->buff[i].buffer[0]);
+
 #endif
+        queue_uninit(vctx->free_buff);
+        queue_uninit(vctx->fill_buff);
 
         free(vctx);
     }
@@ -447,27 +456,15 @@ void decode_uninit(demux_ctx_h h)
     free(ctx);
 }
 
-int decode_get_audio_buffers_count(demux_ctx_h h)
+void decode_start_read(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
 
-    if (!ctx->audio_ctx)
-        DBG_E("Audio context not allocated\n");
+    if (!ctx)
+        return;
 
-    return ctx->audio_ctx->free_buffs;
+    ctx->pause = 0;
 }
-
-#ifdef CONFIG_VIDEO
-int decode_get_video_buffers_count(demux_ctx_h h)
-{
-    demux_ctx_t *ctx = (demux_ctx_t *)h;
-
-    if (!ctx->video_ctx)
-        DBG_E("Video context not allocated\n");
-
-    return ctx->video_ctx->free_buffs;
-}
-#endif
 
 void decode_release_audio_buffer(demux_ctx_h h)
 {
@@ -484,7 +481,7 @@ void decode_release_audio_buffer(demux_ctx_h h)
 }
 
 #ifdef CONFIG_VIDEO
-void decode_release_video_buffer(demux_ctx_h h)
+void decode_release_video_buffer(demux_ctx_h h, video_buffer_t *buff)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
 
@@ -492,8 +489,7 @@ void decode_release_video_buffer(demux_ctx_h h)
     {
         DBG_E("Video context not allocated\n");
     }
-    ctx->video_ctx->free_buffs++;
-
+    queue_push(ctx->video_ctx->free_buff, (queue_node_t *)buff);
     signal_buffer(ctx->video_ctx->empty_buff);
 }
 #endif
@@ -592,11 +588,31 @@ uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_da
 }
 
 #ifdef CONFIG_VIDEO
-uint8_t *decode_get_next_video_buffer(demux_ctx_h h, size_t *size, int64_t *pts, ret_code_t *rc)
+video_buffer_t *decode_get_free_buffer(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
-    int index;
-    uint8_t *buf;
+    video_buffer_t *vbuff;
+
+    if (!ctx || !ctx->video_ctx)
+    {
+        DBG_E("Video context not allocated\n");
+        return NULL;
+    }
+
+    if (ctx->stop_decode)
+        return NULL;
+
+    vbuff = (video_buffer_t *)queue_pop(ctx->video_ctx->free_buff);
+
+    return vbuff;
+}
+
+#include <time.h>
+
+video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+    video_buffer_t *vbuff;
 
     if (!ctx->video_ctx)
     {
@@ -612,39 +628,23 @@ uint8_t *decode_get_next_video_buffer(demux_ctx_h h, size_t *size, int64_t *pts,
         return NULL;
     }
 
-    if (ctx->video_ctx->free_buffs >= VIDEO_BUFFERS)
+    vbuff = (video_buffer_t *)queue_pop(ctx->video_ctx->fill_buff);
+    if (!vbuff)
     {
-        ret_code_t ret;
-
-        ret = timedwait_buffer(ctx->video_ctx->full_buff, 100/*ms*/);
-        if (rc)
-            *rc = ret;
-        if (ret == L_FAILED)
-        {
-            DBG_F("Wait condition failed\n");
-            return NULL;
-        }
-        else if(ret == L_TIMEOUT)
-        {
-            return NULL;
-        }
+        msleep_wait(ctx->video_ctx->full_buff, 500);
+        vbuff = (video_buffer_t *)queue_pop(ctx->video_ctx->fill_buff);
     }
-    index = ctx->video_ctx->curr_play_buff;
-#ifdef CONFIG_VIDEO_HW_DECODE
-    buf = ctx->video_ctx->buff[index].data;
-#else
-    buf = ctx->video_ctx->buff[index].buffer[0];
-#endif
-    *size = ctx->video_ctx->buff[index].size;
-    *pts = ctx->video_ctx->buff[index].pts_ms;
-    ctx->video_ctx->curr_play_buff++;
-    if (ctx->video_ctx->curr_play_buff >= VIDEO_BUFFERS)
-        ctx->video_ctx->curr_play_buff = 0;
+    if (!vbuff)
+    {
+        if (rc)
+            *rc = L_TIMEOUT;
+        return NULL;
+    }
 
     if (rc)
         *rc = L_OK;
 
-    return buf;
+    return vbuff;
 }
 
 int decode_is_video(demux_ctx_h h)
@@ -1001,7 +1001,7 @@ uint8_t *decode_get_codec_extra_data(demux_ctx_h h, int *size)
 #ifdef CONFIG_VIDEO_HW_DECODE
 static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
 {
-    int index = ctx->curr_read_buff;
+    video_buffer_t *buff;
 
     if (!pkt->data || !pkt->size)
     {
@@ -1010,14 +1010,17 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     }
 
     *got_frame = 1;
-    if (!ctx->free_buffs)
+    buff = (video_buffer_t *)queue_pop(ctx->free_buff);
+    if (!buff)
+    {
         timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
-
-    if (pkt->size <= ctx->buff[index].buff_size)
+        buff = (video_buffer_t *)queue_pop(ctx->free_buff);
+    }
+    if (pkt->size <= buff->buff_size)
     {
         /* TODO. Redesign with out memcpy */
-        memcpy(ctx->buff[index].data, pkt->data, pkt->size);
-        ctx->buff[index].size = pkt->size;
+        memcpy(buff->data, pkt->data, pkt->size);
+        buff->size = pkt->size;
     }
     else
     {
@@ -1025,14 +1028,12 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
         DBG_F("Packet is too large. Size = %d Need buffer reallocation\n", pkt->size);
     }
 
-    /* TODO. Not shure it it correct */
-    ctx->buff[index].pts_ms = AV_NOPTS_VALUE;
+    if(pkt->dts != AV_NOPTS_VALUE)
+        buff->pts_ms = ts2ms(&ctx->st->time_base, pkt->pts);
+    else
+        buff->pts_ms = AV_NOPTS_VALUE;
 
-    ctx->free_buffs--;
-    ctx->curr_read_buff++;
-    if (ctx->curr_read_buff >= VIDEO_BUFFERS)
-        ctx->curr_read_buff = 0;
-
+    queue_push(ctx->fill_buff, (queue_node_t *)buff);
     signal_buffer(ctx->full_buff);
 
     return 0;
@@ -1222,6 +1223,14 @@ static void *read_demux_data(void *args)
     int got_frame;
     AVFrame *frame = NULL;
     demux_ctx_t *ctx = (demux_ctx_t *)args;
+
+    while (ctx->pause)
+    {
+        if (ctx->stop_decode)
+            return NULL;
+
+        usleep(50000);
+    }
 
     DBG_I("Start demux task\n");
 

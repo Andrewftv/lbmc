@@ -136,7 +136,7 @@ static void *player_routine(void *args)
         if (!buf)
         {
             if (rc != L_STOPPING)
-                DBG_V("Nothing to play\n");
+                DBG_I("Nothing to play\n");
             usleep(10000);
             continue;
         }

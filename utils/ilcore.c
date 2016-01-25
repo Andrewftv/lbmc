@@ -116,6 +116,17 @@ static int find_func_cb(list_node_t *node, void *user_data)
     return 0;
 }
 
+static int search_event_cb(list_node_t *node, void *user_data)
+{
+	omx_event_t *event = (omx_event_t *)node;
+	int event_type = *(int *)user_data;
+
+	if (event->eEvent == OMX_EventError || event->eEvent == event_type)
+		return 1;
+
+	return 0;
+}
+
 OMX_ERRORTYPE il_event_handler(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent, 
     OMX_U32 nData1, OMX_U32 nData2, OMX_PTR pEventData)
 {
@@ -134,6 +145,55 @@ OMX_ERRORTYPE il_fill_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, O
 OMX_ERRORTYPE il_empty_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
 {
     DBG_I("Empty buffer done\n");
+
+    return OMX_ErrorNone;
+}
+
+OMX_ERRORTYPE omx_core_comp_wait_event(ilcore_comp_h h, OMX_EVENTTYPE eventType, long timeout)
+{
+    omx_event_t *event;
+    OMX_ERRORTYPE rc = OMX_ErrorNone;
+    ilcore_comp_ctx_t *ctx = (ilcore_comp_ctx_t *)h;
+
+    while (1)
+    {
+        event = (omx_event_t *)slist_find_remove(ctx->event_list, search_event_cb, &eventType);
+        if (event)
+        {
+            if(event->eEvent == OMX_EventError && event->nData1 == (OMX_U32)OMX_ErrorSameState && event->nData2 == 1)
+            {
+                DBG_I("Component received event: same state\n");
+                rc = OMX_ErrorNone;
+            }
+            else if(event->eEvent == OMX_EventError) 
+			{
+				rc = (OMX_ERRORTYPE)event->nData1;
+                DBG_E("Component received error: %d\n", rc);
+			}
+            else if(event->eEvent == eventType)
+            {
+                DBG_I("Got event\n");
+                rc = OMX_ErrorNone;
+            }
+            else
+            {
+                DBG_E("Unknown event\n");
+                rc = OMX_ErrorMax;
+            }
+            free(event);
+
+            return rc;
+        }
+
+        if (!timeout)
+            return OMX_ErrorMax;
+
+        if (msleep_wait(ctx->event_sleep, timeout) == MSLEEP_TIMEOUT)
+        {
+            DBG_E("Wait event timeout\n");
+            return OMX_ErrorMax;
+        }
+    }
 
     return OMX_ErrorNone;
 }
@@ -454,6 +514,36 @@ ret_code_t ilcore_get_param(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
     ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
 
     err = OMX_GetParameter(ctx->handle, index, data);
+    if(err != OMX_ErrorNone) 
+	{
+		DBG_E("%s: %s failed with err = 0x%x\n", __FUNCTION__, ctx->name, err);
+        return L_FAILED;
+	}
+
+    return L_OK;
+}
+
+ret_code_t ilcore_set_config(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
+{
+    OMX_ERRORTYPE err;
+    ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
+
+    err = OMX_SetConfig(ctx->handle, index, data);
+    if(err != OMX_ErrorNone) 
+	{
+		DBG_E("%s: %s failed with err = 0x%x\n", __FUNCTION__, ctx->name, err);
+        return L_FAILED;
+	}
+
+    return L_OK;
+}
+
+ret_code_t ilcore_get_config(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
+{
+    OMX_ERRORTYPE err;
+    ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
+
+    err = OMX_GetConfig(ctx->handle, index, data);
     if(err != OMX_ErrorNone) 
 	{
 		DBG_E("%s: %s failed with err = 0x%x\n", __FUNCTION__, ctx->name, err);

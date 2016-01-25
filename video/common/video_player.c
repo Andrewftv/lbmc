@@ -43,10 +43,11 @@ void video_player_stop(video_player_context *player_ctx)
 
 void *player_main_routine(void *args)
 {
-    size_t size;
-    uint8_t *buf;
-    int64_t pts;
+    video_buffer_t *buf;
+#ifndef CONFIG_RASPBERRY_PI
     int first_pkt = 1;
+#endif
+    ret_code_t rc;
     video_player_context *player_ctx = (video_player_context *)args;
 
     DBG_I("Video player task started.\n");
@@ -63,8 +64,6 @@ void *player_main_routine(void *args)
 
     while(player_ctx->running)
     {
-        ret_code_t rc;
-
         if (!player_ctx->running)
             break;
 
@@ -74,7 +73,7 @@ void *player_main_routine(void *args)
             continue;
         }
 
-        buf = decode_get_next_video_buffer(player_ctx->demux_ctx, &size, &pts, &rc);
+        buf = decode_get_next_video_buffer(player_ctx->demux_ctx, &rc);
         if (!buf)
         {
             if (rc == L_FAILED)
@@ -84,6 +83,7 @@ void *player_main_routine(void *args)
             }
             else if (rc == L_TIMEOUT)
             {
+                DBG_I("Nothing to play\n");
                 if (player_ctx->idle)
                     player_ctx->idle(player_ctx->priv);
                 continue;
@@ -94,7 +94,7 @@ void *player_main_routine(void *args)
                 break;
             }
         }
-
+#ifndef CONFIG_RASPBERRY_PI
         if (first_pkt)
         {
             clock_gettime(CLOCK_MONOTONIC, &player_ctx->base_time);
@@ -116,10 +116,14 @@ void *player_main_routine(void *args)
             }
             player_ctx->last_pts = pts;
         }
-
+#endif
+        //if (buf->pts_ms != AV_NOPTS_VALUE)
+        //    fprintf(stderr, "--- new frame pts=%lld\n", buf->pts_ms);
+        //else
+        //    fprintf(stderr, "--- new frame pts=NOPTS\n");
         player_ctx->draw_frame(player_ctx->priv, buf);
 
-        decode_release_video_buffer(player_ctx->demux_ctx);
+        decode_release_video_buffer(player_ctx->demux_ctx, buf);
     }
 
     player_ctx->running = 0;

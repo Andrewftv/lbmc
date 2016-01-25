@@ -2,19 +2,37 @@
 #define __LBMC_DECODE_H__
 
 #define AUDIO_BUFFERS 64
-#define VIDEO_BUFFERS 2
+#define VIDEO_BUFFERS 4
 
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixfmt.h>
 #include "errors.h"
+#include "queue.h"
 
 typedef void* demux_ctx_h;
 
+#ifdef CONFIG_VIDEO
+typedef struct {
+    queue_node_t node;
+#ifdef CONFIG_VIDEO_HW_DECODE
+    uint8_t *data;
+    int buff_size;  /* Allocation size */
+#else
+    uint8_t *buffer[4];
+    int linesize[4];
+#endif
+    int size;       /* Data size */
+    int64_t pts_ms; /* PTS in ms from a stream begin */
+    void *app_data;
+    int number;
+} video_buffer_t;
+#endif
+
 ret_code_t decode_init(demux_ctx_h *h, char *src_file);
 void decode_uninit(demux_ctx_h h);
+void decode_start_read(demux_ctx_h h);
 
 /* Access to buffers by player */
-int decode_get_audio_buffers_count(demux_ctx_h h);
 uint8_t *decode_get_next_audio_buffer(demux_ctx_h h, size_t *size, void **app_data, int64_t *pts, ret_code_t *rc);
 void decode_release_audio_buffer(demux_ctx_h h);
 
@@ -22,9 +40,9 @@ int decode_is_audio(demux_ctx_h h);
 ret_code_t decode_next_audio_stream(demux_ctx_h h);
 
 #ifdef CONFIG_VIDEO
-int decode_get_video_buffers_count(demux_ctx_h h);
-uint8_t *decode_get_next_video_buffer(demux_ctx_h h, size_t *size, int64_t *pts, ret_code_t *rc);
-void decode_release_video_buffer(demux_ctx_h h);
+video_buffer_t *decode_get_free_buffer(demux_ctx_h h);
+video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc);
+void decode_release_video_buffer(demux_ctx_h h, video_buffer_t *buff);
 int decode_is_video(demux_ctx_h h);
 int devode_get_video_size(demux_ctx_h hd, int *w, int *h);
 ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt);
