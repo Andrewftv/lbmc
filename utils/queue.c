@@ -98,8 +98,10 @@ queue_node_t *queue_pop_timed(queue_h h, int timeout)
     queue_t *q = (queue_t *)h;
 
     node = queue_pop(h);
-    if (!node)
-        msleep_wait(q->wait, timeout);
+    if (node)
+        return node;
+    
+    msleep_wait(q->wait, timeout);
 
     return queue_pop(h);
 }

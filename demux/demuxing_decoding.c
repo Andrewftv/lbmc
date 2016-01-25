@@ -325,6 +325,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
                 return L_FAILED;
             }
             vbuff->size = rc;
+            vbuff->number = i;
 
             queue_push(vctx->free_buff, (queue_node_t *)vbuff);
         }
@@ -622,7 +623,7 @@ video_buffer_t *decode_get_free_buffer(demux_ctx_h h)
 video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
-    video_buffer_t *vbuff;
+    video_buffer_t *vbuff = NULL;
 
     if (!ctx->video_ctx)
     {
@@ -638,12 +639,7 @@ video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc)
         return NULL;
     }
 
-    vbuff = (video_buffer_t *)queue_pop(ctx->video_ctx->fill_buff);
-    if (!vbuff)
-    {
-        msleep_wait(ctx->video_ctx->full_buff, 500);
-        vbuff = (video_buffer_t *)queue_pop(ctx->video_ctx->fill_buff);
-    }
+    vbuff = (video_buffer_t *)queue_pop_timed(ctx->video_ctx->fill_buff, 500);
     if (!vbuff)
     {
         if (rc)
