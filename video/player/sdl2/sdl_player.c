@@ -20,6 +20,8 @@ typedef struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *texture;
+
+    demux_ctx_h demux;
 } player_ctx_t;
 
 static void uninit_sdl(video_player_h h)
@@ -72,6 +74,8 @@ static int init_sdl(video_player_h h)
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 
+    decode_start_read(ctx->demux);
+
     return 0;
 }
 
@@ -119,7 +123,7 @@ static void event_sdl(player_ctx_t *ctx, SDL_Rect *rect, int *is_min)
     }
 }
 
-static int draw_frame_sdl(video_player_h h, uint8_t *buf)
+static int draw_frame_sdl(video_player_h h, video_buffer_t *buf)
 {
     SDL_Rect dst_rect;
     int win_minimized = 0;
@@ -134,7 +138,7 @@ static int draw_frame_sdl(video_player_h h, uint8_t *buf)
     if (win_minimized)
         return 0;
 
-    SDL_UpdateTexture(ctx->texture, NULL, buf, ctx->width * 4);
+    SDL_UpdateTexture(ctx->texture, NULL, buf->buffer[0], ctx->width * 4);
     SDL_RenderClear(ctx->renderer);
     SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, &dst_rect);
     SDL_RenderPresent(ctx->renderer);
@@ -159,6 +163,7 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
         return L_FAILED;
     }
     memset(ctx, 0, sizeof(player_ctx_t));
+    ctx->demux = h;
     player_ctx->priv = ctx;
 
     if (devode_get_video_size(h, &ctx->width, &ctx->height))

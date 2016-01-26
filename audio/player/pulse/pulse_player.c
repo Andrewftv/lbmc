@@ -85,7 +85,7 @@ static void *player_routine(void *args)
     fmt = decode_get_sample_format(ctx->audio_ctx);
     ss.format = av2pa(fmt);
 
-    DBG_I("Player task started\n");
+    DBG_I("Audio player task started\n");
     ctx->running = 1;
 
     DBG_I("Open pulse audio. format: %s rate: %d channels: %d\n",
