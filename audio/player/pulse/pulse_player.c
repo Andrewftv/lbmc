@@ -75,9 +75,7 @@ static void *player_routine(void *args)
     pa_sample_spec ss;
     pa_simple *s = NULL;
     int error;
-    size_t size;
-    uint8_t *buf;
-    int64_t pts;
+    audio_buffer_t *buf;
     enum AVSampleFormat fmt;
     int first_pkt = 1;
     ret_code_t rc;
@@ -111,7 +109,7 @@ static void *player_routine(void *args)
             continue;
         }
 
-        buf = decode_get_next_audio_buffer(ctx->audio_ctx, &size, NULL, &pts, &rc);
+        buf = decode_get_next_audio_buffer(ctx->audio_ctx, &rc);
         if (!buf)
         {
             if (rc != L_STOPPING)
@@ -125,10 +123,10 @@ static void *player_routine(void *args)
             clock_gettime(CLOCK_MONOTONIC, &ctx->base_time);
             first_pkt = 0;
         }
-        else if (pts != AV_NOPTS_VALUE)
+        else if (buf->pts_ms != AV_NOPTS_VALUE)
         {
             struct timespec curr_time;
-            int diff, pts_ms = (int)pts - ctx->corrected_pts;
+            int diff, pts_ms = (int)buf->pts_ms - ctx->corrected_pts;
 
             clock_gettime(CLOCK_MONOTONIC, &curr_time);
             diff = util_time_sub(&curr_time, &ctx->base_time);
@@ -138,23 +136,23 @@ static void *player_routine(void *args)
                 diff = pts_ms - diff;
                 DBG_V("Going to sleep for %d ms\n", diff);
                 usleep(diff * 1000);
-                ctx->last_pts = pts;
+                ctx->last_pts = buf->pts_ms;
             }
             else if (diff > pts_ms + 10)
             {
-                ctx->last_pts = pts;
+                ctx->last_pts = buf->pts_ms;
                 DBG_V("Drop this packet\n");
                 goto Drop;
             }
         }
 
-        if (pa_simple_write(s, buf, size, &error) < 0) 
+        if (pa_simple_write(s, buf->data[0], buf->size, &error) < 0) 
         {
             DBG_E("pa_simple_write() failed: %s\n", pa_strerror(error));
             break;
         }
 Drop:
-        decode_release_audio_buffer(ctx->audio_ctx);
+        decode_release_audio_buffer(ctx->audio_ctx, buf);
     }
 
 finish:

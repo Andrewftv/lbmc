@@ -72,6 +72,8 @@ typedef struct {
 
     GLuint tex_frame;
     int win;
+
+    demux_ctx_h demux;
 } player_ctx_t;
 
 static int gl_flush_buffers(void)
@@ -310,6 +312,8 @@ static ret_code_t gl_init(video_player_h h)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ctx->width, ctx->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
+    decode_start_read(ctx->demux);
+
     return L_OK;
 }
 
@@ -412,8 +416,6 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
     memset(ctx, 0, sizeof(player_ctx_t));
     player_ctx->priv = ctx;
 
-    decode_start_read(h);
-
     if (devode_get_video_size(h, &width, &height))
     {
         DBG_E("Can not get video size\n");
@@ -422,6 +424,7 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
 
     ctx->width = width;
     ctx->height = height;
+    ctx->demux = h;
 
     player_ctx->init = gl_init;
     player_ctx->uninit = gl_uninit;
