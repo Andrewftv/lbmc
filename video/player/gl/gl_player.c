@@ -285,11 +285,11 @@ static ret_code_t gl_init(video_player_h h)
     glutInitContextVersion(3,0);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA /*| GLUT_DEPTH*/);
 
-    glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
-
     glutInitWindowSize(ctx->width, ctx->height);
     ctx->win = glutCreateWindow("LBMC GL player");
+
+    glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
 
     create_shader(ctx);
 
