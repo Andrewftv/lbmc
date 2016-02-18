@@ -265,8 +265,9 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         vctx->codec_id = video_stream->codec->codec_id;
        
         DBG_I("Codec extradata size is: %d\n", video_stream->codec->extradata_size);
-        vctx->codec_ext_data = video_stream->codec->extradata;
-        vctx->codec_ext_data_size =  video_stream->codec->extradata_size;
+        vctx->codec_ext_data = (uint8_t *)malloc(video_stream->codec->extradata_size);
+        memcpy(vctx->codec_ext_data, video_stream->codec->extradata, video_stream->codec->extradata_size);
+        vctx->codec_ext_data_size = video_stream->codec->extradata_size;
  
         if (video_stream->avg_frame_rate.den && video_stream->avg_frame_rate.num)
         {
@@ -452,6 +453,9 @@ void decode_uninit(demux_ctx_h h)
 #endif
         queue_uninit(vctx->free_buff);
         queue_uninit(vctx->fill_buff);
+
+        if (vctx->codec_ext_data)
+            free(vctx->codec_ext_data);
 
         free(vctx);
     }
