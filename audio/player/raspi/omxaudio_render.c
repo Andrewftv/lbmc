@@ -21,7 +21,6 @@ static OMX_ERRORTYPE play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppDat
     audio_player_h h = (audio_player_h)pBuffer->pAppPrivate;
 
     audio_player_set_buffer_done(h);
-    decode_release_audio_buffer(audio_player_get_demuxer(h));
     msleep_wakeup(audio_player_get_msleep(h));
 
     return OMX_ErrorNone;
@@ -88,6 +87,7 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
     OMX_ERRORTYPE err;
     OMX_STATETYPE state;
     OMX_PARAM_PORTDEFINITIONTYPE portdef;
+    audio_buffer_t *buf[AUDIO_BUFFERS];
     int i;
 
     memset(&portdef, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
@@ -124,25 +124,23 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
 
     for (i = 0; i < portdef.nBufferCountActual; i++)
     {
-        uint8_t *buf;
-        OMX_BUFFERHEADERTYPE *buf_hdr;
+        OMX_BUFFERHEADERTYPE *hdr;
 
-        buf = decode_get_audio_buffer_by_index(demuxer, i);
-        if (!buf)
+        buf[i] = decode_get_free_audio_buffer(demuxer);
+        if (!buf[i])
         {
             DBG_E("Can not get demuxer buffer #%d\n", i);
             return L_FAILED;
         }
 
-        err = OMX_UseBuffer(ilcore_get_handle(render), &buf_hdr, IL_AUDIO_RENDER_IN_PORT, NULL,
-            portdef.nBufferSize, buf);
+        err = OMX_UseBuffer(ilcore_get_handle(render), &hdr, IL_AUDIO_RENDER_IN_PORT, NULL,
+            portdef.nBufferSize, buf[i]->data[0]);
         if (err != OMX_ErrorNone)
         {
             DBG_E("OMX_UseBuffer failed. err=%d index=%d\n", err, i);
             return L_FAILED;
         }
-
-        decode_set_audio_buffer_priv_data(demuxer, i, buf_hdr);
+        buf[i]->app_data = hdr;
     }
 
     err = omx_core_comp_wait_command(render, OMX_CommandPortEnable, IL_AUDIO_RENDER_IN_PORT, 100);
@@ -151,6 +149,9 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
         DBG_E("Wait event failed. err=%d\n");
         return L_FAILED;
     }
+
+    for (i = 0; i < portdef.nBufferCountActual; i++)
+        decode_release_audio_buffer(demuxer, buf[i]);
 
     return L_OK;
 }

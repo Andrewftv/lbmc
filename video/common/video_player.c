@@ -49,6 +49,7 @@ void *player_main_routine(void *args)
 #endif
     ret_code_t rc;
     video_player_context *player_ctx = (video_player_context *)args;
+    //struct timespec start, end;
 
     DBG_I("Video player task started.\n");
 
@@ -73,7 +74,13 @@ void *player_main_routine(void *args)
             continue;
         }
 
+        //clock_gettime(CLOCK_MONOTONIC, &start);
         buf = decode_get_next_video_buffer(player_ctx->demux_ctx, &rc);
+        //clock_gettime(CLOCK_MONOTONIC, &end);
+        //if (buf)
+        //    DBG_I("--- new buff #%d timeout %d\n", buf->number, util_time_sub(&end, &start));
+        //else
+        //    DBG_I("--- no packet. timeout %d\n", util_time_sub(&end, &start));
         if (!buf)
         {
             if (rc == L_FAILED)

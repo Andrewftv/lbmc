@@ -35,7 +35,6 @@ static int nalu_format_start_codes(uint8_t *extradata, int extrasize)
 
     return 0;
 }
-#if 0
 static ret_code_t hdmi_clock_sync(ilcore_comp_h render)
 {
     OMX_CONFIG_LATENCYTARGETTYPE latency;
@@ -55,7 +54,7 @@ static ret_code_t hdmi_clock_sync(ilcore_comp_h render)
 
     return ilcore_set_config(render, OMX_IndexConfigLatencyTarget, &latency);
 }
-#endif
+
 static OMX_ERRORTYPE play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
 {
     player_ctx_t *ctx = (player_ctx_t *)pBuffer->pAppPrivate;
@@ -301,10 +300,10 @@ static ret_code_t raspi_init(video_player_h h)
                 goto Error;
         }
     }
-#if 0
+
     if (hdmi_clock_sync(ctx->render))
         goto Error;
-#endif
+
     /* Setup buffers */
     DBG_I("Setup decoder buffers\n");
 
@@ -327,7 +326,7 @@ static ret_code_t raspi_init(video_player_h h)
     {
         OMX_BUFFERHEADERTYPE *hdr;
 
-        buffers[i] = decode_get_free_buffer(ctx->demux);
+        buffers[i] = decode_get_free_video_buffer(ctx->demux);
         if (!buffers[i])
         {
             DBG_E("Can not get demuxer buffer #%d\n", i);
@@ -375,7 +374,7 @@ static ret_code_t raspi_init(video_player_h h)
 
         DBG_I("Config codec\n");
 
-        buff = decode_get_free_buffer(ctx->demux);
+        buff = decode_get_free_video_buffer(ctx->demux);
         if (!buff)
             goto Error;
 
@@ -429,25 +428,23 @@ static ret_code_t raspi_draw_frame(video_player_h h, video_buffer_t *buff)
     OMX_BUFFERHEADERTYPE *hdr;
     OMX_ERRORTYPE err;
     int sent_data = 0;
+    //int size = buff->size;
 
     while (buff->size > 0)
     {
         hdr = (OMX_BUFFERHEADERTYPE *)buff->app_data;
         hdr->nFlags = 0;
         hdr->nOffset = 0;
-        hdr->nTimeStamp = buff->pts_ms;
+        hdr->nTimeStamp = (buff->pts_ms == AV_NOPTS_VALUE) ? 0 : buff->pts_ms;
         if (first_pkt)
         {
-            hdr->nFlags = OMX_BUFFERFLAG_STARTTIME | OMX_BUFFERFLAG_ENDOFFRAME;
+            hdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
             first_pkt = 0;
         }
         else
         {
             if(buff->pts_ms == AV_NOPTS_VALUE)
-            {
-                hdr->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
-                hdr->nTimeStamp = 0;
-            }
+                hdr->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
         }
         hdr->nFilledLen = (hdr->nAllocLen >= buff->size) ? buff->size : hdr->nAllocLen;
         hdr->pAppPrivate = ctx;
@@ -458,8 +455,8 @@ static ret_code_t raspi_draw_frame(video_player_h h, video_buffer_t *buff)
         sent_data += hdr->nFilledLen;
         buff->size -= hdr->nFilledLen;
 
-        if (buff->size > 0)
-            hdr->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
+        //if (sent_data == size)
+        //    hdr->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
 
         err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->decoder), hdr);
         if (err != OMX_ErrorNone)
@@ -514,7 +511,7 @@ Error:
 
 static void raspi_idle(video_player_h ctx)
 {
-    usleep(100000);
+    usleep(1000);
 }
 
 ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, ilcore_comp_h clock)

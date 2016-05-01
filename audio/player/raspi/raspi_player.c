@@ -86,10 +86,8 @@ static ret_code_t audio_player_uninit(player_ctx_t *ctx)
 
 static void *player_routine(void *args)
 {
-    size_t size;
-    uint8_t *buf;
+    audio_buffer_t *buf;
     ret_code_t rc;
-    int64_t pts;
     int first_frame = 1;
     int ret;
     OMX_ERRORTYPE err;
@@ -132,7 +130,7 @@ static void *player_routine(void *args)
             continue;
         }
 
-        buf = decode_get_next_audio_buffer(ctx->demuxer, &size, (void *)&hdr, &pts, &rc);
+        buf = decode_get_next_audio_buffer(ctx->demuxer, &rc);
         if (!buf)
         {
             if (rc != L_STOPPING)
@@ -141,6 +139,8 @@ static void *player_routine(void *args)
             continue;
         }
 
+        hdr = (OMX_BUFFERHEADERTYPE *)buf->app_data;
+        hdr->nFlags = 0;
         if (first_frame)
         {
             omx_clock_set_speed(ctx->clock, OMX_CLOCK_NORMAL_SPEED);
@@ -148,12 +148,20 @@ static void *player_routine(void *args)
             hdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
         }
 
-        DBG_V("New packet. size=%d pts=0x%llx\n", size, pts);
+        DBG_V("New packet. size=%d pts=0x%llx\n", buf->size, buf->pts_ms);
         hdr->pAppPrivate = ctx;
         hdr->nOffset = 0;
-        hdr->nFilledLen = size;
-        hdr->nTimeStamp = pts;
-        hdr->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
+        hdr->nFilledLen = buf->size;
+        if (buf->pts_ms == AV_NOPTS_VALUE)
+        {
+            hdr->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
+            hdr->nTimeStamp = 0;
+        }
+        else
+        {
+            hdr->nTimeStamp = buf->pts_ms;
+        }
+        hdr->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
 
         ctx->buff_done = 0;
         err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->render), hdr);
@@ -164,7 +172,7 @@ static void *player_routine(void *args)
         
         }
         if (ctx->buff_done)
-            continue;
+            goto release;
 
         do
         {
@@ -178,6 +186,8 @@ static void *player_routine(void *args)
                 usleep(PAUSE_SLEEP_US);
             }
         } while (ctx->pause && ret != MSLEEP_INTERRUPT);
+release:
+        decode_release_audio_buffer(ctx->demuxer, buf);
     }
 
     ctx->running = 0;

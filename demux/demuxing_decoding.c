@@ -543,6 +543,25 @@ ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)
     return L_OK;
 }
 
+audio_buffer_t *decode_get_free_audio_buffer(demux_ctx_h h)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+    audio_buffer_t *abuff;
+
+    if (!ctx || !ctx->audio_ctx)
+    {
+        DBG_E("Video context not allocated\n");
+        return NULL;
+    }
+
+    if (ctx->stop_decode)
+        return NULL;
+
+    abuff = (audio_buffer_t *)queue_pop(ctx->audio_ctx->free_buff);
+
+    return abuff;
+}
+
 audio_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
@@ -577,7 +596,7 @@ audio_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc)
 }
 
 #ifdef CONFIG_VIDEO
-video_buffer_t *decode_get_free_buffer(demux_ctx_h h)
+video_buffer_t *decode_get_free_video_buffer(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
     video_buffer_t *vbuff;
@@ -984,6 +1003,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     else
         buff->pts_ms = AV_NOPTS_VALUE;
 
+    //DBG_I("Filled buffer #%d\n", buff->number);
     queue_push(ctx->fill_buff, (queue_node_t *)buff);
     signal_buffer(ctx->full_buff);
 

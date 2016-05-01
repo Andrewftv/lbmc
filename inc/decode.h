@@ -44,6 +44,7 @@ void decode_uninit(demux_ctx_h h);
 void decode_start_read(demux_ctx_h h);
 
 /* Access to buffers by player */
+audio_buffer_t *decode_get_free_audio_buffer(demux_ctx_h h);
 audio_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc);
 void decode_release_audio_buffer(demux_ctx_h h, audio_buffer_t *buff);
 
@@ -51,7 +52,7 @@ int decode_is_audio(demux_ctx_h h);
 ret_code_t decode_next_audio_stream(demux_ctx_h h);
 
 #ifdef CONFIG_VIDEO
-video_buffer_t *decode_get_free_buffer(demux_ctx_h h);
+video_buffer_t *decode_get_free_video_buffer(demux_ctx_h h);
 video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc);
 void decode_release_video_buffer(demux_ctx_h h, video_buffer_t *buff);
 int decode_is_video(demux_ctx_h h);

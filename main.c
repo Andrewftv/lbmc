@@ -113,9 +113,6 @@ int main(int argc, char **argv)
 	if (decode_init(&demux_ctx, src_filename))
 		goto end;
 
-    if (decode_is_audio(demux_ctx))
-		audio_player_start(&aplayer_ctx, demux_ctx, clock);
-#ifdef CONFIG_VIDEO  
 #ifdef CONFIG_RASPBERRY_PI
     hdmi_init_display(&tv_state);
 
@@ -123,6 +120,9 @@ int main(int argc, char **argv)
     if (!clock)
         goto end;
 #endif
+    if (decode_is_audio(demux_ctx))
+		audio_player_start(&aplayer_ctx, demux_ctx, clock);
+#ifdef CONFIG_VIDEO  
 	if (decode_is_video(demux_ctx))
 		video_player_start(&vplayer_ctx, demux_ctx, clock);
     else
