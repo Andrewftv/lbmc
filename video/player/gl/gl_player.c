@@ -57,9 +57,13 @@ static GLfloat vertices[] = {
 typedef struct {
     int width, height;
 
-#ifdef TEXT_RENDERER
+#ifdef CONFIG_GL_TEXT_RENDERER
     ft_text_h ft_lib;
-    GLuint tex_osd;
+    GLuint tex_subs;
+    char *last_text;
+    int tex_inited;
+    int tex_width;
+    int tex_height;
 #endif
 
     GLuint vs; /* Vertex Shader */
@@ -156,7 +160,7 @@ static ret_code_t create_shader(player_ctx_t *ctx)
     glCompileShader(ctx->fs);
     
     glGetShaderiv(ctx->fs, GL_COMPILE_STATUS, &status);
-    DBG_I("Vertix copmile status is %s\n", status ? "OK" : "FAILED");
+    DBG_I("Fragment copmile status is %s\n", status ? "OK" : "FAILED");
     print_log(ctx->fs); 
 
     ctx->sp = glCreateProgram();
@@ -194,7 +198,7 @@ static void delete_shader(player_ctx_t *ctx)
     glDeleteVertexArrays(1, &ctx->vao);
 }
 
-#ifdef TEXT_RENDERER
+#ifdef CONFIG_GL_TEXT_RENDERER
 static void set_text_color(player_ctx_t *ctx, float r, float g, float b, float a)
 {
     GLint textcolor;
@@ -209,20 +213,45 @@ static void set_text_color(player_ctx_t *ctx, float r, float g, float b, float a
     glUniform4fv(textcolor, 1, color);    
 }
 
+static void calc_texture_size(player_ctx_t *ctx, const char *text, int *w, int *h, int *origin)
+{
+    const char *p;
+    FT_GlyphSlot g;
+
+    *w = 0;
+    *origin = 0;
+
+    for (p = text; *p; p++)
+    {
+        if(ft_load_char(ctx->ft_lib, *p))
+            continue;
+
+        g = ft_text_get_glyph(ctx->ft_lib);
+    
+        *w += (g->advance.x >> 6);
+        if (g->bitmap.rows - (g->metrics.horiBearingY >> 6) > *origin)
+            *origin = g->bitmap.rows - (g->metrics.horiBearingY >> 6);
+    }
+    ft_text_get_size(ctx->ft_lib, h);
+}
+
 static void render_text(player_ctx_t *ctx, const char *text, float x, float y, float red, float green, float blue)
 {
     const char *p;
     FT_GlyphSlot g;
-    FT_Bitmap bitmap;
+    //FT_Bitmap bitmap;
+    int xxx = x;
+    int origin;
 
     float sx = 2.0 / glutGet(GLUT_WINDOW_WIDTH);
     float sy = 2.0 / glutGet(GLUT_WINDOW_HEIGHT);
 
+    int fx, fy, fw, fh;
+
     glUniform1i(glGetUniformLocation(ctx->sp, "text_render"), 1);
 
-    glGenTextures(1, &ctx->tex_osd);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, ctx->tex_osd);
+    glBindTexture(GL_TEXTURE_2D, ctx->tex_subs);
     glUniform1i(glGetUniformLocation(ctx->sp, "tex"), 1);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -230,46 +259,61 @@ static void render_text(player_ctx_t *ctx, const char *text, float x, float y, f
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    for(p = text; *p; p++)
+    if (!ctx->last_text || strcmp(text, ctx->last_text))
     {
-        if(ft_load_char(ctx->ft_lib, *p))
-            continue;
-
-        set_text_color(ctx, red, green, blue, 1.0);
- 
-        g = ft_text_get_glyph(ctx->ft_lib);
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g->bitmap.width, g->bitmap.rows, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
-            g->bitmap.buffer);
-
-        float x2 = x + g->bitmap_left * sx;
-        float y2 = -y - g->bitmap_top * sy;
-        float w = g->bitmap.width * sx;
-        float h = g->bitmap.rows * sy;
-
-        vertices[0] = x2; vertices[1] = -y2;
-        vertices[4] = x2 + w; vertices[5] = -y2;
-        vertices[8] = x2 + w; vertices[9] = -y2 - h;
-        vertices[12] = x2; vertices[13] = -y2 - h;
-    
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-        set_text_color(ctx, 0.0, 0.0, 0.0, 1.0);
-        
-        if (ft_load_stroker(ctx->ft_lib, *p, &bitmap) == L_OK)
+        if (ctx->tex_inited)
         {
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap.width, bitmap.rows, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
-                bitmap.buffer);
-
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-            ft_done_stroker(ctx->ft_lib);
+            ctx->tex_inited = 0;
+            if (ctx->last_text)
+                free(ctx->last_text);
         }
+
+        DBG_I("Create new subtitles texture\n");
+
+        calc_texture_size(ctx, text, &ctx->tex_width, &ctx->tex_height, &origin);
+        //origin++;
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ctx->tex_width, ctx->tex_height/* + 2*/, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
+            NULL);
+
+        for(p = text; *p; p++)
+        {
+            if(ft_load_char(ctx->ft_lib, *p))
+                continue;
+
+            set_text_color(ctx, red, green, blue, 1.0);
+ 
+            g = ft_text_get_glyph(ctx->ft_lib);
+            fx = xxx + (g->metrics.horiBearingX >> 6);
+            fy = ctx->tex_height - origin - (g->metrics.horiBearingY >> 6);
+            fw = g->bitmap.width;
+            fh = g->bitmap.rows;
+            glTexSubImage2D(GL_TEXTURE_2D, 0, fx, fy, fw, fh, GL_ALPHA, GL_UNSIGNED_BYTE, g->bitmap.buffer);
     
-        x += (g->advance.x >> 6) * sx;
-        y += (g->advance.y >> 6) * sy;
+            //set_text_color(ctx, 0.0, 0.0, 0.0, 1.0);
+
+            //if (ft_load_stroker(ctx->ft_lib, *p, &bitmap) == L_OK)
+            //{
+            //    glTexSubImage2D(GL_TEXTURE_2D, 0, fx, fy, bitmap.width, bitmap.rows, GL_ALPHA,
+            //        GL_UNSIGNED_BYTE, bitmap.buffer);
+
+            //    ft_done_stroker(ctx->ft_lib);
+            //}
+            xxx += (g->advance.x >> 6);  
+        }
+        ctx->last_text = strdup(text);
+        ctx->tex_inited = 1;
     }
-    glDeleteTextures(1, &ctx->tex_osd);
+    float w = ctx->tex_width * sx;
+    float h = (ctx->tex_height /*+ 2*/) * sy;
+
+    vertices[0] = x; vertices[1] = y;
+    vertices[4] = x + w; vertices[5] = y;
+    vertices[8] = x + w; vertices[9] = y - h;
+    vertices[12] = x; vertices[13] = y - h;
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
     glUniform1i(glGetUniformLocation(ctx->sp, "text_render"), 0);
 }
@@ -285,11 +329,11 @@ static ret_code_t gl_init(video_player_h h)
     glutInitContextVersion(3,0);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA /*| GLUT_DEPTH*/);
 
-    glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
-
     glutInitWindowSize(ctx->width, ctx->height);
     ctx->win = glutCreateWindow("LBMC GL player");
+
+    glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
 
     create_shader(ctx);
 
@@ -312,6 +356,12 @@ static ret_code_t gl_init(video_player_h h)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ctx->width, ctx->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
+#ifdef CONFIG_GL_TEXT_RENDERER
+    if (ft_text_init(&ctx->ft_lib))
+        ctx->ft_lib = NULL;
+    glGenTextures(1, &ctx->tex_subs);
+#endif
+
     decode_start_read(ctx->demux);
 
     return L_OK;
@@ -321,9 +371,14 @@ static void gl_uninit(video_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
+    if (ctx->last_text)
+        free(ctx->last_text);
+
     glDeleteTextures(1, &ctx->tex_frame);
-#ifdef TEXT_RENDERER
-    glDeleteTextures(1, &ctx->tex_osd);
+#ifdef CONFIG_GL_TEXT_RENDERER
+    if (ctx->ft_lib)
+        ft_text_uninit(ctx->ft_lib);
+    glDeleteTextures(1, &ctx->tex_subs);
 #endif
     glutDestroyWindow(ctx->win);
 
@@ -354,6 +409,8 @@ static void gl_set_viewport(player_ctx_t *ctx)
     }
 }
 
+static int frames = 0;
+
 static ret_code_t gl_draw_frame(video_player_h h, video_buffer_t *buff)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
@@ -364,7 +421,7 @@ static ret_code_t gl_draw_frame(video_player_h h, video_buffer_t *buff)
     glUniform1i(glGetUniformLocation(ctx->sp, "tex"), 0);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ctx->width, ctx->height, GL_RGBA, GL_UNSIGNED_BYTE, buff->buffer[0]);
 
-#ifdef TEXT_RENDERER
+#ifdef CONFIG_GL_TEXT_RENDERER
     vertices[0] = -1.0; vertices[1] = 1.0;
     vertices[4] = 1.0; vertices[5] = 1.0;
     vertices[8] = 1.0; vertices[9] = -1.0;
@@ -374,13 +431,17 @@ static ret_code_t gl_draw_frame(video_player_h h, video_buffer_t *buff)
 #endif
 
     glClear(GL_COLOR_BUFFER_BIT /*| GL_DEPTH_BUFFER_BIT*/);
-       glEnable(GL_TEXTURE_2D);
+    glEnable(GL_TEXTURE_2D);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-#ifdef TEXT_RENDERER
-    ft_text_set_size(ctx->ft_lib, 48);    
-    render_text(ctx, "The Quick Brown Fox Jumps Over The Lazy Dog", -1.0,  0.0, 1.0, 1.0, 1.0);
+#ifdef CONFIG_GL_TEXT_RENDERER
+    frames++;
+    ft_text_set_size(ctx->ft_lib, 48);
+    if (frames < 100)
+        render_text(ctx, "The Quick Brown Fox Jumps Over The Lazy Dog", -1.0,  0.0, 1.0, 1.0, 1.0);
+    else
+        render_text(ctx, "Hello !!!", -1.0,  0.0, 1.0, 1.0, 1.0);
 #endif
 
     gl_flush_buffers();

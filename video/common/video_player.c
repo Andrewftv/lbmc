@@ -56,11 +56,6 @@ void *player_main_routine(void *args)
     if (player_ctx->init(player_ctx->priv))
         return NULL;
 
-#ifdef TEXT_RENDERER
-    if (ft_text_init(&ctx->ft_lib))
-        ctx->ft_lib = NULL;
-#endif
-
     player_ctx->running = 1;
 
     while(player_ctx->running)
@@ -138,10 +133,6 @@ void *player_main_routine(void *args)
     }
 
     player_ctx->running = 0;
-#ifdef TEXT_RENDERER
-    if (ctx->ft_lib)
-        ft_text_uninit(ctx->ft_lib);
-#endif
 
     player_ctx->uninit(player_ctx->priv);
 

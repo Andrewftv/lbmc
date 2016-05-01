@@ -265,8 +265,9 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         vctx->codec_id = video_stream->codec->codec_id;
        
         DBG_I("Codec extradata size is: %d\n", video_stream->codec->extradata_size);
-        vctx->codec_ext_data = video_stream->codec->extradata;
-        vctx->codec_ext_data_size =  video_stream->codec->extradata_size;
+        vctx->codec_ext_data = (uint8_t *)malloc(video_stream->codec->extradata_size);
+        memcpy(vctx->codec_ext_data, video_stream->codec->extradata, video_stream->codec->extradata_size);
+        vctx->codec_ext_data_size = video_stream->codec->extradata_size;
  
         if (video_stream->avg_frame_rate.den && video_stream->avg_frame_rate.num)
         {
@@ -453,6 +454,9 @@ void decode_uninit(demux_ctx_h h)
         queue_uninit(vctx->free_buff);
         queue_uninit(vctx->fill_buff);
 
+        if (vctx->codec_ext_data)
+            free(vctx->codec_ext_data);
+
         free(vctx);
     }
 #endif
@@ -467,6 +471,8 @@ void decode_uninit(demux_ctx_h h)
 void decode_start_read(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    DBG_I("Wakeup\n");
 
     if (!ctx)
         return;
@@ -1195,8 +1201,11 @@ static void *read_demux_data(void *args)
     AVFrame *frame = NULL;
     demux_ctx_t *ctx = (demux_ctx_t *)args;
 
-    msleep_wait(ctx->pause, INFINITE_WAIT);
-
+    if (decode_is_video(ctx))
+    {
+        DBG_I("Waiting\n");
+        msleep_wait(ctx->pause, INFINITE_WAIT);
+    }
     DBG_I("Start demux task\n");
 
     frame = av_frame_alloc();
