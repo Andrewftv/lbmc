@@ -43,7 +43,7 @@ void video_player_stop(video_player_context *player_ctx)
 
 void *player_main_routine(void *args)
 {
-    video_buffer_t *buf;
+    media_buffer_t *buf;
 #ifndef CONFIG_RASPBERRY_PI
     int first_pkt = 1;
 #endif
@@ -129,7 +129,9 @@ void *player_main_routine(void *args)
         //    fprintf(stderr, "--- new frame pts=NOPTS\n");
         player_ctx->draw_frame(player_ctx->priv, buf);
 
+#ifndef CONFIG_RASPBERRY_PI
         decode_release_video_buffer(player_ctx->demux_ctx, buf);
+#endif
     }
 
     player_ctx->running = 0;

@@ -12,20 +12,6 @@
 #include "ilcore.h"
 #include "omxaudio_render.h"
 
-void audio_player_set_buffer_done(audio_player_h h);
-demux_ctx_h audio_player_get_demuxer(audio_player_h h);
-msleep_h audio_player_get_msleep(audio_player_h h);
-
-static OMX_ERRORTYPE play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
-{
-    audio_player_h h = (audio_player_h)pBuffer->pAppPrivate;
-
-    audio_player_set_buffer_done(h);
-    msleep_wakeup(audio_player_get_msleep(h));
-
-    return OMX_ErrorNone;
-}
-
 ilcore_comp_h create_omxaudio_render(int buff_size, int buff_count, int sample_rate, int channels)
 {
     OMX_ERRORTYPE err;
@@ -34,7 +20,7 @@ ilcore_comp_h create_omxaudio_render(int buff_size, int buff_count, int sample_r
     ilcore_comp_h render;
 
     cb.EventHandler = il_event_handler;
-    cb.EmptyBufferDone = play_buffer_done;
+    cb.EmptyBufferDone = audio_play_buffer_done;
     cb.FillBufferDone = il_fill_buffer_done;
 
     if (ilcore_init_comp(&render, &cb, "OMX.broadcom.audio_render"))
@@ -87,7 +73,7 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
     OMX_ERRORTYPE err;
     OMX_STATETYPE state;
     OMX_PARAM_PORTDEFINITIONTYPE portdef;
-    audio_buffer_t *buf[AUDIO_BUFFERS];
+    media_buffer_t *buf[AUDIO_BUFFERS];
     int i;
 
     memset(&portdef, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
@@ -134,7 +120,7 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
         }
 
         err = OMX_UseBuffer(ilcore_get_handle(render), &hdr, IL_AUDIO_RENDER_IN_PORT, NULL,
-            portdef.nBufferSize, buf[i]->data[0]);
+            portdef.nBufferSize, buf[i]->s.audio.data[0]);
         if (err != OMX_ErrorNone)
         {
             DBG_E("OMX_UseBuffer failed. err=%d index=%d\n", err, i);

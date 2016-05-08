@@ -10,6 +10,7 @@ typedef struct {
 
     list_h event_list;
     msleep_h event_sleep;
+    void *app_data;
 } ilcore_comp_ctx_t;
 
 typedef struct {
@@ -553,6 +554,20 @@ ret_code_t ilcore_get_config(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
     return L_OK;
 }
 
+void ilcore_set_app_data(ilcore_comp_h h, void *app_data)
+{
+    ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
+
+    ctx->app_data = app_data;
+}
+
+void *ilcore_get_app_data(ilcore_comp_h h)
+{
+    ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
+
+    return ctx->app_data;
+}
+
 ret_code_t ilcore_init_comp(ilcore_comp_h *h, OMX_CALLBACKTYPE *cb, char *name)
 {
     OMX_ERRORTYPE err;
@@ -717,6 +732,7 @@ ret_code_t ilcore_setup_tunnel(ilcore_tunnel_h h)
 
     if (ilcore_get_state(tunnel->dst_comp, &state) != L_OK)
         return L_FAILED;
+    
     omx_err = omx_core_comp_wait_command(tunnel->dst_comp, OMX_CommandPortEnable, tunnel->dst_port, 2000);
     if(omx_err != OMX_ErrorNone)
         return L_FAILED;

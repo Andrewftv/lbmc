@@ -47,6 +47,7 @@ CFLAGS+=-Wall -Werror -Wno-deprecated-declarations
 INCLUDES:=-I$(TOP_DIR)/inc -I/usr/include/freetype2/
 ifdef CONFIG_RASPBERRY_PI
 INCLUDES+=-I$(SYSROOT)/usr/include/interface/vcos/pthreads -I$(SYSROOT)/usr/include/interface/vmcs_host/linux
+CFLAGS+=-DOMX_SKIP64BIT
 endif
 
 FFMPEG_LIBS = -lavdevice -lavformat -lavfilter -lavcodec -lswresample -lswscale -lavutil

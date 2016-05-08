@@ -229,6 +229,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         return L_FAILED;
     }
 #ifdef CONFIG_VIDEO
+    DBG_I("Format name: %s\n", ctx->fmt_ctx->iformat->name);
     if (!open_codec_context(&stream_index, ctx->fmt_ctx, AVMEDIA_TYPE_VIDEO))
     {
         app_video_ctx_t *vctx;
@@ -281,21 +282,36 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         }
 
         DBG_I("SRC: Video size %dx%d. pix_fmt=%s\n", vctx->width, vctx->height, av_get_pix_fmt_name(vctx->pix_fmt));
+        {
+            float aspect = 0.0;
+
+            if (video_stream->sample_aspect_ratio.num != 0)
+            {
+                aspect = av_q2d(video_stream->sample_aspect_ratio) * video_stream->codec->width /
+                    video_stream->codec->height;
+            }
+            else if (video_stream->codec->sample_aspect_ratio.num != 0)
+		    {
+			    aspect = av_q2d(video_stream->codec->sample_aspect_ratio) * video_stream->codec->width /
+                    video_stream->codec->height;
+		    }
+            fprintf(stderr, "--- ASPECT=%f\n", aspect);
+        }
 #ifdef CONFIG_VIDEO_HW_DECODE
         for (i = 0; i < VIDEO_BUFFERS; i++)
         {
-            video_buffer_t *vbuff;        
+            media_buffer_t *vbuff;        
 
-            vbuff = (video_buffer_t *)malloc(sizeof(video_buffer_t));
-
-            if (posix_memalign ((void **)&vbuff->data, 16, 200 * 1024))
+            vbuff = (media_buffer_t *)malloc(sizeof(media_buffer_t));
+            memset(vbuff, 0, sizeof(media_buffer_t));
+            vbuff->type = MB_VIDEO_TYPE;
+            if (posix_memalign ((void **)&vbuff->s.video.data, 16, 80 * 1024))
             {
                 DBG_E("Could not allocate destination video buffer\n");
                 return L_FAILED;
             }
-            vbuff->buff_size = 200 * 1024;
-            vbuff->number = i;
-            DBG_I("Video buffer %p\n", vbuff->data);
+            vbuff->s.video.buff_size = 80 * 1024;
+            DBG_I("Video buffer %p\n", vbuff->s.video.data);
 
             queue_push(vctx->free_buff, (queue_node_t *)vbuff);
         }
@@ -418,20 +434,20 @@ void decode_uninit(demux_ctx_h h)
 #ifdef CONFIG_VIDEO
     if (ctx->video_ctx)
     {
-        video_buffer_t *buff;
+        media_buffer_t *buff;
         app_video_ctx_t *vctx = ctx->video_ctx;
 
         msleep_uninit(vctx->full_buff);
         msleep_uninit(vctx->empty_buff);
 #ifdef CONFIG_VIDEO_HW_DECODE
-        while ((buff = (video_buffer_t *)queue_pop(vctx->free_buff)) != NULL)
+        while ((buff = (media_buffer_t *)queue_pop(vctx->free_buff)) != NULL)
         {
-            free(buff->data);
+            free(buff->s.video.data);
             free(buff);
         }
-        while ((buff = (video_buffer_t *)queue_pop(vctx->fill_buff)) != NULL)
+        while ((buff = (media_buffer_t *)queue_pop(vctx->fill_buff)) != NULL)
         {
-            free(buff->data);
+            free(buff->s.video.data);
             free(buff);
         }
 #else
@@ -480,7 +496,7 @@ void decode_start_read(demux_ctx_h h)
     msleep_wakeup(ctx->pause);
 }
 
-void decode_release_audio_buffer(demux_ctx_h h, audio_buffer_t *buff)
+void decode_release_audio_buffer(demux_ctx_h h, media_buffer_t *buff)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
 
@@ -495,7 +511,7 @@ void decode_release_audio_buffer(demux_ctx_h h, audio_buffer_t *buff)
 }
 
 #ifdef CONFIG_VIDEO
-void decode_release_video_buffer(demux_ctx_h h, video_buffer_t *buff)
+void decode_release_video_buffer(demux_ctx_h h, media_buffer_t *buff)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
 
@@ -549,10 +565,10 @@ ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)
     return L_OK;
 }
 
-audio_buffer_t *decode_get_free_audio_buffer(demux_ctx_h h)
+media_buffer_t *decode_get_free_audio_buffer(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
-    audio_buffer_t *abuff;
+    media_buffer_t *abuff;
 
     if (!ctx || !ctx->audio_ctx)
     {
@@ -563,15 +579,15 @@ audio_buffer_t *decode_get_free_audio_buffer(demux_ctx_h h)
     if (ctx->stop_decode)
         return NULL;
 
-    abuff = (audio_buffer_t *)queue_pop(ctx->audio_ctx->free_buff);
+    abuff = (media_buffer_t *)queue_pop(ctx->audio_ctx->free_buff);
 
     return abuff;
 }
 
-audio_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc)
+media_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
-    audio_buffer_t *abuf;
+    media_buffer_t *abuf;
 
     if (!ctx->audio_ctx)
     {
@@ -587,7 +603,7 @@ audio_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc)
             *rc = L_STOPPING;
         return NULL;
     }
-    abuf = (audio_buffer_t *)queue_pop_timed(ctx->audio_ctx->fill_buff, 500);
+    abuf = (media_buffer_t *)queue_pop_timed(ctx->audio_ctx->fill_buff, 500);
     if (!abuf)
     {
         if (rc)
@@ -602,10 +618,10 @@ audio_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc)
 }
 
 #ifdef CONFIG_VIDEO
-video_buffer_t *decode_get_free_video_buffer(demux_ctx_h h)
+media_buffer_t *decode_get_free_video_buffer(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
-    video_buffer_t *vbuff;
+    media_buffer_t *vbuff;
 
     if (!ctx || !ctx->video_ctx)
     {
@@ -616,15 +632,15 @@ video_buffer_t *decode_get_free_video_buffer(demux_ctx_h h)
     if (ctx->stop_decode)
         return NULL;
 
-    vbuff = (video_buffer_t *)queue_pop(ctx->video_ctx->free_buff);
+    vbuff = (media_buffer_t *)queue_pop(ctx->video_ctx->free_buff);
 
     return vbuff;
 }
 
-video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc)
+media_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
-    video_buffer_t *vbuff = NULL;
+    media_buffer_t *vbuff = NULL;
 
     if (!ctx->video_ctx)
     {
@@ -640,7 +656,7 @@ video_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc)
         return NULL;
     }
 
-    vbuff = (video_buffer_t *)queue_pop_timed(ctx->video_ctx->fill_buff, 500);
+    vbuff = (media_buffer_t *)queue_pop_timed(ctx->video_ctx->fill_buff, 500);
     if (!vbuff)
     {
         if (rc)
@@ -720,20 +736,20 @@ void decode_stop(demux_ctx_h h)
 #endif
 }
 
-static ret_code_t realloc_audio_buffer(audio_buffer_t *buffer, enum AVSampleFormat dst_fmt)
+static ret_code_t realloc_audio_buffer(media_buffer_t *buffer, enum AVSampleFormat dst_fmt)
 {
     int dst_linesize;
 
-    av_freep(&buffer->data[0]);
-    if (av_samples_alloc(buffer->data, &dst_linesize, 2, buffer->nb_samples, dst_fmt, 16) < 0)
+    av_freep(&buffer->s.audio.data[0]);
+    if (av_samples_alloc(buffer->s.audio.data, &dst_linesize, 2, buffer->s.audio.nb_samples, dst_fmt, 16) < 0)
     {
         DBG_E("av_samples_alloc failed\n");
         return L_FAILED;
     }
-    buffer->max_nb_samples = buffer->nb_samples;
+    buffer->s.audio.max_nb_samples = buffer->s.audio.nb_samples;
     buffer->size = dst_linesize;
 
-    DBG_I("Reallocation audio buffer. Maxinum sample: %d size=%d\n", buffer->max_nb_samples, dst_linesize);
+    DBG_I("Reallocation audio buffer. Maxinum sample: %d size=%d\n", buffer->s.audio.max_nb_samples, dst_linesize);
 
     return L_OK;
 }
@@ -745,7 +761,7 @@ static ret_code_t init_audio_buffers(app_audio_ctx_t *ctx)
     int dst_nb_chs;
     int dst_linesize;
     enum AVSampleFormat dst_fmt;
-    audio_buffer_t *buff;
+    media_buffer_t *buff;
 
     dst_fmt = ctx->codec->sample_fmt;
     if (av_sample_fmt_is_planar(dst_fmt)) 
@@ -753,28 +769,29 @@ static ret_code_t init_audio_buffers(app_audio_ctx_t *ctx)
 
     for (i = 0; i < AUDIO_BUFFERS; i++)
     {
-        buff = (audio_buffer_t *)malloc(sizeof(audio_buffer_t));
+        buff = (media_buffer_t *)malloc(sizeof(media_buffer_t));
         if (!buff)
         {
             DBG_E("Memory allocation failed\n");
             rc = L_FAILED;
             break;
         }
-        memset(buff, 0, sizeof(audio_buffer_t));
-        buff->max_nb_samples = buff->nb_samples = av_rescale_rnd(SAMPLE_PER_BUFFER, ctx->codec->sample_rate,
-            ctx->codec->sample_rate, AV_ROUND_UP);
-        DBG_V("max_nb_samples = %d(%d)\n", buff->max_nb_samples, av_get_bytes_per_sample(dst_fmt));
+        memset(buff, 0, sizeof(media_buffer_t));
+        buff->type = MB_AUDIO_TYPE;
+        buff->s.audio.max_nb_samples = buff->s.audio.nb_samples =
+            av_rescale_rnd(SAMPLE_PER_BUFFER, ctx->codec->sample_rate, ctx->codec->sample_rate, AV_ROUND_UP);
+        DBG_V("max_nb_samples = %d(%d)\n", buff->s.audio.max_nb_samples, av_get_bytes_per_sample(dst_fmt));
 
         dst_nb_chs = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
-        if (av_samples_alloc_array_and_samples(&buff->data, &dst_linesize, dst_nb_chs, buff->nb_samples,
+        if (av_samples_alloc_array_and_samples(&buff->s.audio.data, &dst_linesize, dst_nb_chs, buff->s.audio.nb_samples,
             dst_fmt, 16) < 0)
         {
             rc = L_FAILED;
             DBG_E("Could not allocate destination samples\n");
             break;
         }
-        ctx->buff_size = buff->buff_size = dst_linesize;
-        DBG_V("Buffer address is %p size=%d\n", buff->data[0], dst_linesize);
+        ctx->buff_size = buff->s.audio.buff_size = dst_linesize;
+        DBG_V("Buffer address is %p size=%d\n", buff->s.audio.data[0], dst_linesize);
 
         queue_push(ctx->free_buff, (queue_node_t *)buff);
     }
@@ -784,20 +801,20 @@ static ret_code_t init_audio_buffers(app_audio_ctx_t *ctx)
 
 static void uninit_audio_buffers(app_audio_ctx_t *ctx)
 {
-    audio_buffer_t *buff;
+    media_buffer_t *buff;
 
-    while ((buff = (audio_buffer_t *)queue_pop(ctx->free_buff)) != NULL)
+    while ((buff = (media_buffer_t *)queue_pop(ctx->free_buff)) != NULL)
     {
-        if (buff->data)
-            av_freep(&buff->data[0]);
+        if (buff->s.audio.data)
+            av_freep(&buff->s.audio.data[0]);
 
         free(buff);
     }
 
-    while ((buff = (audio_buffer_t *)queue_pop(ctx->fill_buff)) != NULL)
+    while ((buff = (media_buffer_t *)queue_pop(ctx->fill_buff)) != NULL)
     {
-        if (buff->data)
-            av_freep(&buff->data[0]);
+        if (buff->s.audio.data)
+            av_freep(&buff->s.audio.data[0]);
 
         free(buff);
     }
@@ -850,7 +867,7 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
     enum AVSampleFormat dst_fmt;
     int dst_linesize;
     size_t unpadded_linesize;
-    audio_buffer_t *buff;
+    media_buffer_t *buff;
 
     if (ctx->drop_packets)
         return 0;
@@ -878,30 +895,31 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
         frame->nb_samples, ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame)),
         av_frame_get_channels(frame));
 
-    buff = (audio_buffer_t *)queue_pop(ctx->free_buff);
+    buff = (media_buffer_t *)queue_pop(ctx->free_buff);
     if (!buff)
     {
         timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
-        buff = (audio_buffer_t *)queue_pop(ctx->free_buff);
+        buff = (media_buffer_t *)queue_pop(ctx->free_buff);
     }
 
     unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
 
-    if(pkt->dts != AV_NOPTS_VALUE)
-        buff->pts_ms = ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame));
+    if(pkt->pts != AV_NOPTS_VALUE)
+        //buff->pts_ms = ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame));
+        buff->pts_ms = ts2ms(&ctx->st->time_base, pkt->pts);
     else
         buff->pts_ms = AV_NOPTS_VALUE;
 
     dst_fmt = planar_sample_to_same_packed(ctx->codec->sample_fmt);
     /* compute destination number of samples */
-    buff->nb_samples = av_rescale_rnd(swr_get_delay(ctx->swr, ctx->codec->sample_rate) + frame->nb_samples,
+    buff->s.audio.nb_samples = av_rescale_rnd(swr_get_delay(ctx->swr, ctx->codec->sample_rate) + frame->nb_samples,
         ctx->codec->sample_rate, ctx->codec->sample_rate, AV_ROUND_UP);    
-    if (buff->nb_samples > buff->max_nb_samples)
+    if (buff->s.audio.nb_samples > buff->s.audio.max_nb_samples)
     {
         if (realloc_audio_buffer(buff, dst_fmt))
             return -1;
     }
-    ret = swr_convert(ctx->swr, buff->data, buff->nb_samples, (const uint8_t **)frame->extended_data,
+    ret = swr_convert(ctx->swr, buff->s.audio.data, buff->s.audio.nb_samples, (const uint8_t **)frame->extended_data,
         frame->nb_samples);
     if (ret < 0) 
     {
@@ -977,7 +995,7 @@ uint8_t *decode_get_codec_extra_data(demux_ctx_h h, int *size)
 #ifdef CONFIG_VIDEO_HW_DECODE
 static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
 {
-    video_buffer_t *buff;
+    media_buffer_t *buff;
 
     if (!pkt->data || !pkt->size)
     {
@@ -986,28 +1004,71 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     }
 
     *got_frame = 1;
-    buff = (video_buffer_t *)queue_pop(ctx->free_buff);
+    buff = (media_buffer_t *)queue_pop(ctx->free_buff);
     if (!buff)
     {
         timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
-        buff = (video_buffer_t *)queue_pop(ctx->free_buff);
+        buff = (media_buffer_t *)queue_pop(ctx->free_buff);
     }
-    if (pkt->size <= buff->buff_size)
+    if (pkt->size <= buff->s.video.buff_size)
     {
         /* TODO. Redesign with out memcpy */
-        memcpy(buff->data, pkt->data, pkt->size);
+        memcpy(buff->s.video.data, pkt->data, pkt->size);
         buff->size = pkt->size;
     }
     else
     {
-        /* TODO */
-        DBG_F("Packet is too large. Size = %d Need buffer reallocation\n", pkt->size);
+        int saved = 0, size = pkt->size, to_copy;
+
+        DBG_I("Packet is too large. Size = %d\n", pkt->size);
+        do
+        {
+            to_copy = (size > buff->s.video.buff_size) ? buff->s.video.buff_size : size;
+            DBG_I("Part of buffer: %d bytes size=%d\n", to_copy, size);
+            memcpy(buff->s.video.data, &pkt->data[saved], to_copy);
+            buff->size = to_copy;
+            saved += to_copy;
+            size -= to_copy;
+            if (size)
+            {
+                buff->status = MB_CONTINUE_STATUS;
+                if(pkt->pts != AV_NOPTS_VALUE)
+                    buff->pts_ms = ts2ms(&ctx->st->time_base, pkt->pts);
+                else
+                    buff->pts_ms = AV_NOPTS_VALUE;
+
+                if(pkt->dts != AV_NOPTS_VALUE)
+                    buff->dts_ms = ts2ms(&ctx->st->time_base, pkt->dts);
+                else
+                    buff->dts_ms = AV_NOPTS_VALUE;
+                if (buff->dts_ms == -1)
+                    buff->dts_ms = AV_NOPTS_VALUE;
+
+                queue_push(ctx->fill_buff, (queue_node_t *)buff);
+                //signal_buffer(ctx->full_buff);
+
+                buff = (media_buffer_t *)queue_pop(ctx->free_buff);
+                if (!buff)
+                {
+                    timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
+                    buff = (media_buffer_t *)queue_pop(ctx->free_buff);
+                }
+            }
+        } while (size);
     }
 
-    if(pkt->dts != AV_NOPTS_VALUE)
+    buff->status = MB_FULL_STATUS;
+    if(pkt->pts != AV_NOPTS_VALUE)
         buff->pts_ms = ts2ms(&ctx->st->time_base, pkt->pts);
     else
         buff->pts_ms = AV_NOPTS_VALUE;
+
+    if(pkt->dts != AV_NOPTS_VALUE)
+        buff->dts_ms = ts2ms(&ctx->st->time_base, pkt->dts);
+    else
+        buff->dts_ms = AV_NOPTS_VALUE;
+    if (buff->dts_ms == -1)
+        buff->dts_ms = AV_NOPTS_VALUE;
 
     //DBG_I("Filled buffer #%d\n", buff->number);
     queue_push(ctx->fill_buff, (queue_node_t *)buff);

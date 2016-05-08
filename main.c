@@ -119,6 +119,8 @@ int main(int argc, char **argv)
     clock = create_omx_clock();
     if (!clock)
         goto end;
+
+    omx_clock_hdmi_clock_sync(clock);
 #endif
     if (decode_is_audio(demux_ctx))
 		audio_player_start(&aplayer_ctx, demux_ctx, clock);
@@ -151,8 +153,8 @@ int main(int argc, char **argv)
                 if (decode_is_video(demux_ctx))
                     video_player_pause(&vplayer_ctx);
 #endif
-                if (decode_is_audio(demux_ctx))
-				    audio_player_pause(aplayer_ctx);
+//                if (decode_is_audio(demux_ctx))
+//				    audio_clock_pause(aplayer_ctx);
 				break;
             case 'a':
                 decode_next_audio_stream(demux_ctx);
@@ -168,8 +170,8 @@ int main(int argc, char **argv)
 end:
 	DBG_I("Leave main loop\n");
 	show_console_cursore();
-	DBG_I("Stopping audio player... \n");
-	audio_player_stop(aplayer_ctx);
+//	DBG_I("Stopping audio player... \n");
+//	audio_player_stop(aplayer_ctx);
 	DBG_I("Done\n");
 #ifdef CONFIG_VIDEO
 	DBG_I("Stopping video player... \n");

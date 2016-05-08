@@ -3,6 +3,24 @@
 #include "ilcore.h"
 #include "omxclock.h"
 
+#ifdef OMX_SKIP64BIT
+OMX_TICKS to_omx_time(int64_t pts)
+{
+	OMX_TICKS ticks;
+	ticks.nLowPart = pts;
+	ticks.nHighPart = pts >> 32;
+	return ticks;
+}
+uint64_t from_omx_time(OMX_TICKS ticks)
+{
+	uint64_t pts = ticks.nLowPart | ((uint64_t)ticks.nHighPart << 32);
+	return pts;
+}
+#else
+#define to_omx_time(x) (x)
+#define from_omx_time(x) (x)
+#endif
+
 ilcore_comp_h create_omx_clock(void)
 {
     OMX_TIME_CONFIG_ACTIVEREFCLOCKTYPE ref_clock;
@@ -51,10 +69,31 @@ ret_code_t omx_clock_start(ilcore_comp_h clock, uint64_t pts)
     OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
     OMX_ERRORTYPE err;
 
+    memset(&clock_state, 0, sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
     clock_state.nSize = sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE);
     clock_state.nVersion.nVersion = OMX_VERSION;
     clock_state.eState = OMX_TIME_ClockStateRunning;
-  	clock_state.nStartTime = pts;
+  	clock_state.nStartTime = to_omx_time(1000 * pts);
+
+    err = OMX_SetConfig(ilcore_get_handle(clock), OMX_IndexConfigTimeClockState, &clock_state);
+  	if(err != OMX_ErrorNone)
+    {
+        DBG_E("%s: error setting OMX_IndexConfigTimeClockState\n", __FUNCTION__);
+        return L_FAILED;
+    }
+
+    return L_OK;
+}
+
+ret_code_t omx_clock_stop(ilcore_comp_h clock)
+{
+    OMX_ERRORTYPE err;
+    OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
+
+    memset(&clock_state, 0, sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
+    clock_state.nSize = sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE);
+    clock_state.nVersion.nVersion = OMX_VERSION;
+    clock_state.eState = OMX_TIME_ClockStateStopped;
 
     err = OMX_SetConfig(ilcore_get_handle(clock), OMX_IndexConfigTimeClockState, &clock_state);
   	if(err != OMX_ErrorNone)
@@ -71,7 +110,8 @@ ret_code_t omx_clock_set_speed(ilcore_comp_h clock, omxclock_playback_speed_t sp
     OMX_ERRORTYPE err;
     OMX_TIME_CONFIG_SCALETYPE scale_type;
 
-    scale_type.nSize = sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE);
+    memset(&scale_type, 0, sizeof(OMX_TIME_CONFIG_SCALETYPE));
+    scale_type.nSize = sizeof(OMX_TIME_CONFIG_SCALETYPE);
     scale_type.nVersion.nVersion = OMX_VERSION;
     scale_type.xScale = speed;
 
@@ -99,5 +139,55 @@ ret_code_t omx_clock_state_execute(ilcore_comp_h clock)
     }
 
     return L_OK;
+}
+
+ret_code_t omx_clock_reset(ilcore_comp_h clock)
+{
+    OMX_ERRORTYPE err;
+    OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
+
+    memset(&clock_state, 0, sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
+    clock_state.nSize = sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE);
+    clock_state.nVersion.nVersion = OMX_VERSION;
+
+    omx_clock_stop(clock);
+
+    clock_state.eState = OMX_TIME_ClockStateWaitingForStartTime;
+    clock_state.nOffset = to_omx_time(-1000LL * 200 /*OMX_PRE_ROLL*/);
+
+    clock_state.nWaitMask |= OMX_CLOCKPORT0;
+    clock_state.nWaitMask |= OMX_CLOCKPORT1;
+    clock_state.nWaitMask |= OMX_CLOCKPORT2;
+
+    err = OMX_SetConfig(ilcore_get_handle(clock), OMX_IndexConfigTimeClockState, &clock_state);
+  	if(err != OMX_ErrorNone)
+    {
+        DBG_E("%s: error setting OMX_IndexConfigTimeClockState\n", __FUNCTION__);
+        return L_FAILED;
+    }
+
+    omx_clock_start(clock, 0);
+
+    return L_OK;
+}
+
+ret_code_t omx_clock_hdmi_clock_sync(ilcore_comp_h clock)
+{
+    OMX_CONFIG_LATENCYTARGETTYPE latency;
+
+    memset(&latency, 0, sizeof(OMX_CONFIG_LATENCYTARGETTYPE));
+    latency.nSize = sizeof(OMX_CONFIG_LATENCYTARGETTYPE);
+    latency.nVersion.nVersion = OMX_VERSION;
+
+    latency.nPortIndex = OMX_ALL;
+    latency.bEnabled = OMX_TRUE;
+    latency.nFilter = 10;
+    latency.nTarget = 0;
+    latency.nShift = 3;
+    latency.nSpeedFactor = -200;
+    latency.nInterFactor = 100;
+    latency.nAdjCap = 100;
+
+    return ilcore_set_config(clock, OMX_IndexConfigLatencyTarget, &latency);
 }
 

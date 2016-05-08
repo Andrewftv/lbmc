@@ -30,6 +30,18 @@ typedef struct {
     ilcore_tunnel_h clock_tunnel;
 } player_ctx_t;
 
+OMX_ERRORTYPE audio_play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
+{
+    media_buffer_t *buf = (media_buffer_t *)pBuffer->pAppPrivate;
+    player_ctx_t *ctx = (player_ctx_t *)ilcore_get_app_data(pAppData);
+    
+    ctx->buff_done = 1;
+    decode_release_audio_buffer(ctx->demuxer, buf);
+    msleep_wakeup(ctx->buffer_done);
+
+    return OMX_ErrorNone;
+}
+
 static ret_code_t audio_player_init(player_ctx_t *ctx)
 {
     int buff_size, buff_count;
@@ -47,6 +59,8 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
         decode_get_channels(ctx->demuxer));
     if (!ctx->render)
         return L_FAILED;
+
+    ilcore_set_app_data(ctx->render, ctx);
 
     if (ilcore_set_state(ctx->render, OMX_StateIdle) != L_OK)
         return L_FAILED;
@@ -86,10 +100,10 @@ static ret_code_t audio_player_uninit(player_ctx_t *ctx)
 
 static void *player_routine(void *args)
 {
-    audio_buffer_t *buf;
+    media_buffer_t *buf;
     ret_code_t rc;
     int first_frame = 1;
-    int ret;
+    //int ret;
     OMX_ERRORTYPE err;
     OMX_CONFIG_BRCMAUDIODESTINATIONTYPE ar_dest;
     OMX_BUFFERHEADERTYPE *hdr;
@@ -115,9 +129,9 @@ static void *player_routine(void *args)
 
     ctx->running = 1;
 
-    omx_clock_start(ctx->clock, 0);
-    omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
-    omx_clock_state_execute(ctx->clock);
+    //omx_clock_start(ctx->clock, 0);
+    //omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
+    //omx_clock_state_execute(ctx->clock);
 
     while(ctx->running)
     {
@@ -148,18 +162,18 @@ static void *player_routine(void *args)
             hdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
         }
 
-        DBG_V("New packet. size=%d pts=0x%llx\n", buf->size, buf->pts_ms);
-        hdr->pAppPrivate = ctx;
+        DBG_V("Audio packet. size=%d pts=%lld dts=%lld\n", buf->size, buf->pts_ms, buf->dts_ms);
+        hdr->pAppPrivate = buf;
         hdr->nOffset = 0;
         hdr->nFilledLen = buf->size;
         if (buf->pts_ms == AV_NOPTS_VALUE)
         {
             hdr->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
-            hdr->nTimeStamp = 0;
+            hdr->nTimeStamp = to_omx_time(0);
         }
         else
         {
-            hdr->nTimeStamp = buf->pts_ms;
+            hdr->nTimeStamp = to_omx_time(1000 * buf->pts_ms);
         }
         hdr->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
 
@@ -171,23 +185,23 @@ static void *player_routine(void *args)
             break;
         
         }
-        if (ctx->buff_done)
-            goto release;
+//        if (ctx->buff_done)
+//            goto release;
 
-        do
-        {
-            if ((ret = msleep_wait(ctx->buffer_done, BUFF_DONE_TIMEOUT_MS)) != MSLEEP_INTERRUPT)
-            {
-                if (!ctx->pause || ret != MSLEEP_TIMEOUT)
-                {
-                    DBG_E("Event buffer done not received\n");
-                    break;
-                }
-                usleep(PAUSE_SLEEP_US);
-            }
-        } while (ctx->pause && ret != MSLEEP_INTERRUPT);
-release:
-        decode_release_audio_buffer(ctx->demuxer, buf);
+//        do
+//        {
+//            if ((ret = msleep_wait(ctx->buffer_done, BUFF_DONE_TIMEOUT_MS)) != MSLEEP_INTERRUPT)
+//            {
+//                if (!ctx->pause || ret != MSLEEP_TIMEOUT)
+//                {
+//                    DBG_E("Event buffer done not received\n");
+//                    break;
+//                }
+//                usleep(PAUSE_SLEEP_US);
+//            }
+//        } while (ctx->pause && ret != MSLEEP_INTERRUPT);
+//release:
+//        decode_release_audio_buffer(ctx->demuxer, buf);
     }
 
     ctx->running = 0;
@@ -223,26 +237,11 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h, ilcore_
     return rc;
 }
 
-void audio_player_set_buffer_done(audio_player_h h)
-{
-    player_ctx_t *ctx = (player_ctx_t *)h;
-
-    if (ctx)
-        ctx->buff_done = 1;
-}
-
 demux_ctx_h audio_player_get_demuxer(audio_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
     return ctx->demuxer;
-}
-
-msleep_h audio_player_get_msleep(audio_player_h h)
-{
-    player_ctx_t *ctx = (player_ctx_t *)h;
-
-    return ctx->buffer_done;
 }
 
 void audio_player_stop(audio_player_h h)

@@ -74,5 +74,8 @@ ret_code_t ilcore_get_param(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data);
 ret_code_t ilcore_set_config(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data);
 ret_code_t ilcore_get_config(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data);
 
+void ilcore_set_app_data(ilcore_comp_h h, void *app_data);
+void *ilcore_get_app_data(ilcore_comp_h h);
+
 #endif
 

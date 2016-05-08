@@ -37,7 +37,7 @@ typedef struct {
 
     ret_code_t (*init)(video_player_h ctx);
     void (*uninit)(video_player_h ctx);
-    ret_code_t (*draw_frame)(video_player_h ctx, video_buffer_t *buff);
+    ret_code_t (*draw_frame)(video_player_h ctx, media_buffer_t *buff);
     void (*idle)(video_player_h ctx);
 } video_player_context;
 
