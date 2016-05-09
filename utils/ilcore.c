@@ -382,9 +382,7 @@ ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count)
     OMX_PARAM_PORTDEFINITIONTYPE param;
     ilcore_comp_ctx_t *ctx = (ilcore_comp_ctx_t *)h;
 
-    memset(&param, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
-    param.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
-    param.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(param);
     param.nPortIndex = IL_AUDIO_RENDER_IN_PORT;
  
     err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
@@ -420,9 +418,7 @@ ret_code_t ilcore_disable_port(ilcore_comp_h h, uint32_t port, int wait)
 
     DBG_I("%s: disable port %d on comp %s\n", __FUNCTION__, port, ilcore_get_comp_name(h));
 
-    memset(&param, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
-    param.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
-    param.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(param);
     param.nPortIndex = port;
 
     omx_err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
@@ -461,9 +457,7 @@ ret_code_t ilcore_enable_port(ilcore_comp_h h, uint32_t port, int wait)
 
     DBG_I("%s: enable port %d on comp %s\n", __FUNCTION__, port, ilcore_get_comp_name(h));
 
-    memset(&param, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
-    param.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
-    param.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(param);
     param.nPortIndex = port;
 
     omx_err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);

@@ -38,10 +38,8 @@ ilcore_comp_h create_omx_clock(void)
     if (ilcore_disable_all_ports(clock))
         goto Error;
 
-    memset(&ref_clock, 0, sizeof(OMX_TIME_CONFIG_ACTIVEREFCLOCKTYPE));
-    ref_clock.nSize = sizeof(OMX_TIME_CONFIG_ACTIVEREFCLOCKTYPE);
+    OMX_INIT_STRUCT(ref_clock);
     ref_clock.eClock = OMX_TIME_RefClockAudio;
-    ref_clock.nVersion.nVersion = OMX_VERSION;
 
     err = OMX_SetConfig(ilcore_get_handle(clock), OMX_IndexConfigTimeActiveRefClock, &ref_clock);
     if (err != OMX_ErrorNone)
@@ -69,9 +67,7 @@ ret_code_t omx_clock_start(ilcore_comp_h clock, uint64_t pts)
     OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
     OMX_ERRORTYPE err;
 
-    memset(&clock_state, 0, sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
-    clock_state.nSize = sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE);
-    clock_state.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(clock_state);
     clock_state.eState = OMX_TIME_ClockStateRunning;
   	clock_state.nStartTime = to_omx_time(1000 * pts);
 
@@ -90,9 +86,7 @@ ret_code_t omx_clock_stop(ilcore_comp_h clock)
     OMX_ERRORTYPE err;
     OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
 
-    memset(&clock_state, 0, sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
-    clock_state.nSize = sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE);
-    clock_state.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(clock_state);
     clock_state.eState = OMX_TIME_ClockStateStopped;
 
     err = OMX_SetConfig(ilcore_get_handle(clock), OMX_IndexConfigTimeClockState, &clock_state);
@@ -110,9 +104,7 @@ ret_code_t omx_clock_set_speed(ilcore_comp_h clock, omxclock_playback_speed_t sp
     OMX_ERRORTYPE err;
     OMX_TIME_CONFIG_SCALETYPE scale_type;
 
-    memset(&scale_type, 0, sizeof(OMX_TIME_CONFIG_SCALETYPE));
-    scale_type.nSize = sizeof(OMX_TIME_CONFIG_SCALETYPE);
-    scale_type.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(scale_type);
     scale_type.xScale = speed;
 
     err = OMX_SetConfig(ilcore_get_handle(clock), OMX_IndexConfigTimeScale, &scale_type);
@@ -146,9 +138,7 @@ ret_code_t omx_clock_reset(ilcore_comp_h clock)
     OMX_ERRORTYPE err;
     OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
 
-    memset(&clock_state, 0, sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
-    clock_state.nSize = sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE);
-    clock_state.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(clock_state);
 
     omx_clock_stop(clock);
 
@@ -175,9 +165,7 @@ ret_code_t omx_clock_hdmi_clock_sync(ilcore_comp_h clock)
 {
     OMX_CONFIG_LATENCYTARGETTYPE latency;
 
-    memset(&latency, 0, sizeof(OMX_CONFIG_LATENCYTARGETTYPE));
-    latency.nSize = sizeof(OMX_CONFIG_LATENCYTARGETTYPE);
-    latency.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(latency);
 
     latency.nPortIndex = OMX_ALL;
     latency.bEnabled = OMX_TRUE;

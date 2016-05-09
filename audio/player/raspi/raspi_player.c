@@ -21,9 +21,7 @@ typedef struct {
 
     int pause;
     int running;
-    int buff_done;
 
-    msleep_h buffer_done;
     demux_ctx_h demuxer;
     ilcore_comp_h render;
     ilcore_comp_h clock;
@@ -35,9 +33,7 @@ OMX_ERRORTYPE audio_play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData
     media_buffer_t *buf = (media_buffer_t *)pBuffer->pAppPrivate;
     player_ctx_t *ctx = (player_ctx_t *)ilcore_get_app_data(pAppData);
     
-    ctx->buff_done = 1;
     decode_release_audio_buffer(ctx->demuxer, buf);
-    msleep_wakeup(ctx->buffer_done);
 
     return OMX_ErrorNone;
 }
@@ -46,8 +42,6 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
 {
     int buff_size, buff_count;
 
-    msleep_init(&ctx->buffer_done);
- 
     if (decode_get_audio_buffs_info(ctx->demuxer, &buff_size, &buff_count))
     {
         DBG_E("Can not get audio buffers info\n");
@@ -93,8 +87,6 @@ static ret_code_t audio_player_uninit(player_ctx_t *ctx)
 
     destroy_omxaudio_render(ctx->render);
 
-    msleep_uninit(ctx->buffer_done);
-
     return L_OK;
 }
 
@@ -113,9 +105,7 @@ static void *player_routine(void *args)
     if (audio_player_init(ctx) < 0)
         return NULL;
 
-    memset(&ar_dest, 0, sizeof(ar_dest));
-    ar_dest.nSize = sizeof(OMX_CONFIG_BRCMAUDIODESTINATIONTYPE);
-    ar_dest.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(ar_dest);
     strcpy((char *)ar_dest.sName, "local");
 
     err = OMX_SetConfig(ilcore_get_handle(ctx->render), OMX_IndexConfigBrcmAudioDestination, &ar_dest);
@@ -165,18 +155,21 @@ static void *player_routine(void *args)
         hdr->pAppPrivate = buf;
         hdr->nOffset = 0;
         hdr->nFilledLen = buf->size;
-        if (buf->pts_ms == AV_NOPTS_VALUE)
+        if (buf->pts_ms == AV_NOPTS_VALUE && buf->dts_ms == AV_NOPTS_VALUE)
         {
             hdr->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
             hdr->nTimeStamp = to_omx_time(0);
         }
-        else
+        else if (buf->pts_ms != AV_NOPTS_VALUE)
         {
             hdr->nTimeStamp = to_omx_time(1000 * buf->pts_ms);
         }
+        else
+        {
+            hdr->nTimeStamp = to_omx_time(1000 * buf->dts_ms);
+        }
         hdr->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
 
-        ctx->buff_done = 0;
         err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->render), hdr);
         if (err != OMX_ErrorNone)
         {

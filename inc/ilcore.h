@@ -27,6 +27,12 @@
 #define IL_AUDIO_RENDER_IN_PORT     100
 #define IL_AUDIO_RENDER_CLOCK_PORT  101
 
+#define OMX_INIT_STRUCT(a) do { \
+    memset(&(a), 0, sizeof(a)); \
+    (a).nSize = sizeof(a); \
+    (a).nVersion.nVersion = OMX_VERSION; \
+} while(0)
+
 typedef void* ilcore_comp_h;
 typedef void* ilcore_tunnel_h;
 

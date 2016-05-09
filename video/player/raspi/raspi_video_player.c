@@ -21,9 +21,6 @@ typedef struct {
     ilcore_tunnel_h tunnel_clock;
 
     video_player_context *parent;
-
-    int buff_done;
-    msleep_h buffer_done;
 } player_ctx_t;
 
 static int nalu_format_start_codes(enum AVCodecID codec_id, uint8_t *extradata, int extrasize)
@@ -45,9 +42,7 @@ static ret_code_t hdmi_clock_sync(ilcore_comp_h render)
 {
     OMX_CONFIG_LATENCYTARGETTYPE latency;
 
-    memset(&latency, 0, sizeof(OMX_CONFIG_LATENCYTARGETTYPE));
-    latency.nSize = sizeof(OMX_CONFIG_LATENCYTARGETTYPE);
-    latency.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(latency);
 
     latency.nPortIndex = IL_VIDEO_RENDER_IN_PORT;
     latency.bEnabled = OMX_TRUE;
@@ -66,9 +61,13 @@ static OMX_ERRORTYPE play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppDat
     media_buffer_t *buf = (media_buffer_t *)pBuffer->pAppPrivate;
     player_ctx_t *ctx = (player_ctx_t *)ilcore_get_app_data(pAppData);
 
-    ctx->buff_done = 1;
+    if (!ctx || !buf)
+    {
+        DBG_E("Incorrect parameters: ctx - %p, buff - %p\n", ctx, buf);
+        return OMX_ErrorBadParameter;
+    }
+
     decode_release_video_buffer(ctx->demux, buf);
-    msleep_wakeup(ctx->buffer_done);
 
     return OMX_ErrorNone;
 }
@@ -153,8 +152,6 @@ static void raspi_uninit(video_player_h h)
     if (ctx->render)
         ilcore_uninit_comp(ctx->render);
     ilcore_uninit_comp(ctx->decoder);
-
-    msleep_uninit(ctx->buffer_done);
 }
 
 static ret_code_t raspi_init(video_player_h h)
@@ -174,8 +171,6 @@ static ret_code_t raspi_init(video_player_h h)
     media_buffer_t *buffers[VIDEO_BUFFERS];
 
     video_player_pause(ctx->parent);
-
-    msleep_init(&ctx->buffer_done);
 
     if (decode_get_codec_id(ctx->demux, &codec_id) != L_OK)
     {   
@@ -231,9 +226,7 @@ static ret_code_t raspi_init(video_player_h h)
     if (ilcore_set_state(ctx->decoder, OMX_StateIdle))
         goto Error;
 
-    memset(&format, 0, sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE));
-    format.nSize = sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE);
-    format.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(format);
     format.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
     format.eCompressionFormat = coding_type;
     
@@ -248,9 +241,7 @@ static ret_code_t raspi_init(video_player_h h)
     if (ilcore_set_param(ctx->decoder, OMX_IndexParamVideoPortFormat, &format))
         goto Error;
 
-    memset(&port_param, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
-    port_param.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
-    port_param.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(port_param);
     port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
 
     if (ilcore_get_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
@@ -273,9 +264,7 @@ static ret_code_t raspi_init(video_player_h h)
     if (ilcore_set_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
         goto Error;
 
-    memset(&concan, 0, sizeof(OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE));
-    concan.nSize = sizeof(OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE);
-    concan.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(concan);
     concan.bStartWithValidFrame = OMX_FALSE;
 
     if (ilcore_set_param(ctx->decoder, OMX_IndexParamBrcmVideoDecodeErrorConcealment, &concan))
@@ -288,9 +277,7 @@ static ret_code_t raspi_init(video_player_h h)
     {
         OMX_CONFIG_BOOLEANTYPE time_stamp_mode;
 
-        memset(&time_stamp_mode, 0, sizeof(OMX_CONFIG_BOOLEANTYPE));
-        time_stamp_mode.nSize = sizeof(OMX_CONFIG_BOOLEANTYPE);
-        time_stamp_mode.nVersion.nVersion = OMX_VERSION;
+        OMX_INIT_STRUCT(time_stamp_mode);
         time_stamp_mode.bEnabled = OMX_TRUE;
 
         if (ilcore_set_param(ctx->decoder, OMX_IndexParamBrcmVideoTimestampFifo, &time_stamp_mode))
@@ -302,9 +289,7 @@ static ret_code_t raspi_init(video_player_h h)
 
             DBG_I("Config NAL stream format\n");
 
-            memset(&nal_format, 0, sizeof(OMX_NALSTREAMFORMATTYPE));
-            nal_format.nSize = sizeof(OMX_NALSTREAMFORMATTYPE);
-            nal_format.nVersion.nVersion = OMX_VERSION;
+            OMX_INIT_STRUCT(nal_format);
             nal_format.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
             nal_format.eNaluFormat = OMX_NaluFormatStartCodes;
 
@@ -319,9 +304,7 @@ static ret_code_t raspi_init(video_player_h h)
     /* Setup buffers */
     DBG_I("Setup decoder buffers\n");
 
-    memset(&port_param, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
-    port_param.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
-    port_param.nVersion.nVersion = OMX_VERSION;
+    OMX_INIT_STRUCT(port_param);
     port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
 
     if (ilcore_get_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
@@ -401,7 +384,6 @@ static ret_code_t raspi_init(video_player_h h)
         hdr->nFlags = OMX_BUFFERFLAG_CODECCONFIG | OMX_BUFFERFLAG_ENDOFFRAME;
         hdr->pAppPrivate = buff;
 
-        ctx->buff_done = 0;
         err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->decoder), hdr);
         if (err != OMX_ErrorNone)
         {
@@ -409,15 +391,6 @@ static ret_code_t raspi_init(video_player_h h)
             goto Error;
         
         }
-        if (!ctx->buff_done)
-        {
-            if (msleep_wait(ctx->buffer_done, 1000) == MSLEEP_TIMEOUT)
-            {
-                DBG_E("Event buffer done not received\n");
-                goto Error;
-            }
-        }
-        decode_release_video_buffer(ctx->demux, buff);
         DBG_I("Config codec done\n");
     }
 
@@ -448,91 +421,93 @@ static ret_code_t raspi_draw_frame(video_player_h h, media_buffer_t *buff)
     OMX_BUFFERHEADERTYPE *hdr;
     OMX_ERRORTYPE err;
     int sent_data = 0;
+    int no_ts = 0;
 
-    ctx->buff_done = 0;
-    while (buff->size > 0)
+    hdr = (OMX_BUFFERHEADERTYPE *)buff->app_data;
+    hdr->nFlags = 0;
+    hdr->nOffset = 0;
+        
+    if (buff->pts_ms == AV_NOPTS_VALUE && buff->dts_ms == AV_NOPTS_VALUE)
     {
-        hdr = (OMX_BUFFERHEADERTYPE *)buff->app_data;
-        hdr->nFlags = 0;
-        hdr->nOffset = 0;
-        if (buff->pts_ms == AV_NOPTS_VALUE && buff->dts_ms == AV_NOPTS_VALUE)
-            hdr->nTimeStamp = to_omx_time(0);
-        else if (buff->dts_ms != AV_NOPTS_VALUE)
-            hdr->nTimeStamp = to_omx_time(1000 * buff->dts_ms);
-        else
-            hdr->nTimeStamp = to_omx_time(1000 * buff->pts_ms);
-        DBG_V("Video packet. size: %d pts=%lld dts=%lld\n", buff->size, buff->pts_ms, buff->dts_ms);
-        if (first_pkt)
-        {
-            omx_clock_set_speed(ctx->clock, OMX_CLOCK_NORMAL_SPEED);
-            hdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
-            first_pkt = 0;
-        }
-        else
-        {
-            if(!buff->dts_ms)
-                hdr->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
-        }
-        hdr->nFilledLen = (hdr->nAllocLen >= buff->size) ? buff->size : hdr->nAllocLen;
-        hdr->pAppPrivate = buff;
-
-        if (sent_data)
-        {
-            DBG_I("Send second part\n");
-            memcpy(buff->s.video.data, &buff->s.video.data[sent_data], hdr->nFilledLen);
-        }
-        sent_data += hdr->nFilledLen;
-        buff->size -= hdr->nFilledLen;
-
-        if (!buff->size && buff->status == MB_FULL_STATUS)
-            hdr->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
-        else
-            DBG_I("NO END OF FRAME\n");
-
-        err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->decoder), hdr);
-        if (err != OMX_ErrorNone)
-        {
-            DBG_E("OMX_EmptyThisBuffer failed. err=0x%08x size=%d len=%d pts=0x%llu\n", err, buff->size, hdr->nAllocLen,
-                (uint64_t)buff->pts_ms);
-            goto Error;
-        }
-
-        err = omx_core_comp_wait_event(ctx->decoder, OMX_EventPortSettingsChanged, 0);
-        if (err != OMX_ErrorNone)
-            continue;
-
-        DBG_I("Got OMX_EventPortSettingsChanged\n");
-
-        memset(&port_param, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
-        port_param.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
-        port_param.nVersion.nVersion = OMX_VERSION;
-        port_param.nPortIndex = IL_VIDEO_DECODER_OUT_PORT;
-
-        if (ilcore_get_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
-            goto Error;
-
-        if (ilcore_disable_port(ctx->decoder, IL_VIDEO_DECODER_OUT_PORT, 1))
-            goto Error;
-
-        if (ilcore_disable_port(ctx->scheduler, IL_SCHED_VIDEO_IN_PORT, 1))
-            goto Error;
-
-        port_param.nPortIndex = IL_SCHED_VIDEO_IN_PORT;
-        if (ilcore_set_param(ctx->scheduler, OMX_IndexParamPortDefinition, &port_param))
-            goto Error;
-
-        err = omx_core_comp_wait_event(ctx->scheduler, OMX_EventPortSettingsChanged, 0);
-        if(err != OMX_ErrorNone)
-        {
-            DBG_E("Wait for OMX_EventPortSettingsChanged failed\n");
-        }
-    
-        if (ilcore_enable_port(ctx->decoder, IL_VIDEO_DECODER_OUT_PORT, 1))
-            goto Error;
-
-        if (ilcore_enable_port(ctx->scheduler, IL_SCHED_VIDEO_IN_PORT, 1))
-            goto Error;
+        hdr->nTimeStamp = to_omx_time(0);
+        no_ts = 1;
     }
+    else if (buff->dts_ms != AV_NOPTS_VALUE)
+    {
+        hdr->nTimeStamp = to_omx_time(1000 * buff->dts_ms);
+    }
+    else
+    {
+        hdr->nTimeStamp = to_omx_time(1000 * buff->pts_ms);
+    }
+    DBG_V("Video packet. size: %d pts=%lld dts=%lld\n", buff->size, buff->pts_ms, buff->dts_ms);
+
+    if (first_pkt)
+    {
+        omx_clock_set_speed(ctx->clock, OMX_CLOCK_NORMAL_SPEED);
+        hdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
+        first_pkt = 0;
+    }
+    else
+    {
+        if(no_ts)
+            hdr->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
+    }
+    hdr->nFilledLen = (hdr->nAllocLen >= buff->size) ? buff->size : hdr->nAllocLen;
+    hdr->pAppPrivate = buff;
+
+    if (sent_data)
+    {
+        DBG_I("Send second part\n");
+        memcpy(buff->s.video.data, &buff->s.video.data[sent_data], hdr->nFilledLen);
+    }
+    sent_data += hdr->nFilledLen;
+    buff->size -= hdr->nFilledLen;
+
+    if (!buff->size && buff->status == MB_FULL_STATUS)
+        hdr->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
+
+    err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->decoder), hdr);
+    if (err != OMX_ErrorNone)
+    {
+        DBG_E("OMX_EmptyThisBuffer failed. err=0x%08x size=%d len=%d pts=0x%llu\n", err, buff->size, hdr->nAllocLen,
+                (uint64_t)buff->pts_ms);
+        goto Error;
+    }
+
+    err = omx_core_comp_wait_event(ctx->decoder, OMX_EventPortSettingsChanged, 0);
+    if (err != OMX_ErrorNone)
+        return L_OK;
+
+    DBG_I("Got OMX_EventPortSettingsChanged\n");
+
+    OMX_INIT_STRUCT(port_param);
+    port_param.nPortIndex = IL_VIDEO_DECODER_OUT_PORT;
+
+    if (ilcore_get_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
+        goto Error;
+
+    if (ilcore_disable_port(ctx->decoder, IL_VIDEO_DECODER_OUT_PORT, 1))
+        goto Error;
+
+    if (ilcore_disable_port(ctx->scheduler, IL_SCHED_VIDEO_IN_PORT, 1))
+        goto Error;
+
+    port_param.nPortIndex = IL_SCHED_VIDEO_IN_PORT;
+    if (ilcore_set_param(ctx->scheduler, OMX_IndexParamPortDefinition, &port_param))
+        goto Error;
+
+    err = omx_core_comp_wait_event(ctx->scheduler, OMX_EventPortSettingsChanged, 0);
+    if(err != OMX_ErrorNone)
+    {
+        DBG_E("Wait for OMX_EventPortSettingsChanged failed\n");
+    }
+
+    if (ilcore_enable_port(ctx->decoder, IL_VIDEO_DECODER_OUT_PORT, 1))
+        goto Error;
+
+    if (ilcore_enable_port(ctx->scheduler, IL_SCHED_VIDEO_IN_PORT, 1))
+        goto Error;
 
     return L_OK;
 

@@ -136,6 +136,24 @@ static int get_audio_streams_count(AVFormatContext *fmt)
     return count;
 }
 
+static int get_first_audio_stream(AVFormatContext *fmt)
+{
+    int index = -1, i;
+    AVStream *st;
+
+    for (i = 0; i < fmt->nb_streams; i++)
+    {
+        st = fmt->streams[i];
+        if (st->codec->codec_type == AVMEDIA_TYPE_AUDIO)
+        {
+            index = i;
+            break;
+        }
+    }
+
+    return index;
+}
+
 ret_code_t decode_next_audio_stream(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
@@ -341,6 +359,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
     {
         app_audio_ctx_t *actx;
         AVStream *audio_stream = NULL;
+        int first_index;
 
         streams++;
 
@@ -353,6 +372,20 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         ctx->audio_ctx = actx;
 
         memset(actx, 0, sizeof(app_audio_ctx_t));
+        /* Get first stream instead of "best" */
+        first_index = get_first_audio_stream(ctx->fmt_ctx);
+        if (first_index != stream_index)
+        {
+            AVCodec *dec = NULL;
+            AVStream *st = ctx->fmt_ctx->streams[stream_index];
+
+            avcodec_close(st->codec);
+            st = ctx->fmt_ctx->streams[first_index];
+            dec = avcodec_find_decoder(st->codec->codec_id);
+            avcodec_open2(st->codec, dec, NULL);
+
+            stream_index = first_index;
+        }
         actx->stream_idx = stream_index;
 
         queue_init(&actx->free_buff);
@@ -1002,11 +1035,11 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     {
         int saved = 0, size = pkt->size, to_copy;
 
-        DBG_I("Packet is too large. Size = %d\n", pkt->size);
+        DBG_V("Packet is too large. Size = %d\n", pkt->size);
         do
         {
             to_copy = (size > buff->s.video.buff_size) ? buff->s.video.buff_size : size;
-            DBG_I("Part of buffer: %d bytes size=%d\n", to_copy, size);
+            DBG_V("Part of buffer: %d bytes size=%d\n", to_copy, size);
             memcpy(buff->s.video.data, &pkt->data[saved], to_copy);
             buff->size = to_copy;
             saved += to_copy;
