@@ -371,11 +371,11 @@ static void gl_uninit(video_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
+    glDeleteTextures(1, &ctx->tex_frame);
+#ifdef CONFIG_GL_TEXT_RENDERER
     if (ctx->last_text)
         free(ctx->last_text);
 
-    glDeleteTextures(1, &ctx->tex_frame);
-#ifdef CONFIG_GL_TEXT_RENDERER
     if (ctx->ft_lib)
         ft_text_uninit(ctx->ft_lib);
     glDeleteTextures(1, &ctx->tex_subs);
@@ -409,7 +409,9 @@ static void gl_set_viewport(player_ctx_t *ctx)
     }
 }
 
+#ifdef CONFIG_GL_TEXT_RENDERER
 static int frames = 0;
+#endif
 
 static ret_code_t gl_draw_frame(video_player_h h, media_buffer_t *buff)
 {

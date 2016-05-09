@@ -63,15 +63,9 @@ static ret_code_t hdmi_clock_sync(ilcore_comp_h render)
 
 static OMX_ERRORTYPE play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
 {
-    //player_ctx_t *ctx = (player_ctx_t *)pBuffer->pAppPrivate;
     media_buffer_t *buf = (media_buffer_t *)pBuffer->pAppPrivate;
     player_ctx_t *ctx = (player_ctx_t *)ilcore_get_app_data(pAppData);
 
-    //if (!ctx)
-    //{
-    //    DBG_E("Invalid context\n");
-    //    return OMX_ErrorNone;
-    //}
     ctx->buff_done = 1;
     decode_release_video_buffer(ctx->demux, buf);
     msleep_wakeup(ctx->buffer_done);
@@ -430,7 +424,6 @@ static ret_code_t raspi_init(video_player_h h)
     omx_clock_start(ctx->clock, 0);
     omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
     omx_clock_state_execute(ctx->clock);
-    //omx_clock_reset(ctx->clock);
 
     DBG_I("Video player sucsessfuly initialized !\n");
     decode_start_read(ctx->demux);
@@ -540,15 +533,6 @@ static ret_code_t raspi_draw_frame(video_player_h h, media_buffer_t *buff)
         if (ilcore_enable_port(ctx->scheduler, IL_SCHED_VIDEO_IN_PORT, 1))
             goto Error;
     }
-
-    //if (!ctx->buff_done)
-    //{
-    //    if (msleep_wait(ctx->buffer_done, 50) == MSLEEP_TIMEOUT)
-    //    {
-    //        DBG_E("Event buffer done not received. size=%d\n", buff->size);
-    //        //goto Error;
-    //    }
-    //}
 
     return L_OK;
 

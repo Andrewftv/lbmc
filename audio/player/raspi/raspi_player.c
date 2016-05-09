@@ -103,7 +103,6 @@ static void *player_routine(void *args)
     media_buffer_t *buf;
     ret_code_t rc;
     int first_frame = 1;
-    //int ret;
     OMX_ERRORTYPE err;
     OMX_CONFIG_BRCMAUDIODESTINATIONTYPE ar_dest;
     OMX_BUFFERHEADERTYPE *hdr;
@@ -185,23 +184,6 @@ static void *player_routine(void *args)
             break;
         
         }
-//        if (ctx->buff_done)
-//            goto release;
-
-//        do
-//        {
-//            if ((ret = msleep_wait(ctx->buffer_done, BUFF_DONE_TIMEOUT_MS)) != MSLEEP_INTERRUPT)
-//            {
-//                if (!ctx->pause || ret != MSLEEP_TIMEOUT)
-//                {
-//                    DBG_E("Event buffer done not received\n");
-//                    break;
-//                }
-//                usleep(PAUSE_SLEEP_US);
-//            }
-//        } while (ctx->pause && ret != MSLEEP_INTERRUPT);
-//release:
-//        decode_release_audio_buffer(ctx->demuxer, buf);
     }
 
     ctx->running = 0;

@@ -280,23 +280,6 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
             vctx->fps_rate = video_stream->r_frame_rate.num;
             vctx->fps_scale = video_stream->r_frame_rate.den;
         }
-
-        DBG_I("SRC: Video size %dx%d. pix_fmt=%s\n", vctx->width, vctx->height, av_get_pix_fmt_name(vctx->pix_fmt));
-        {
-            float aspect = 0.0;
-
-            if (video_stream->sample_aspect_ratio.num != 0)
-            {
-                aspect = av_q2d(video_stream->sample_aspect_ratio) * video_stream->codec->width /
-                    video_stream->codec->height;
-            }
-            else if (video_stream->codec->sample_aspect_ratio.num != 0)
-		    {
-			    aspect = av_q2d(video_stream->codec->sample_aspect_ratio) * video_stream->codec->width /
-                    video_stream->codec->height;
-		    }
-            fprintf(stderr, "--- ASPECT=%f\n", aspect);
-        }
 #ifdef CONFIG_VIDEO_HW_DECODE
         for (i = 0; i < VIDEO_BUFFERS; i++)
         {
@@ -1069,7 +1052,6 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     if (buff->dts_ms == -1)
         buff->dts_ms = AV_NOPTS_VALUE;
 
-    //DBG_I("Filled buffer #%d\n", buff->number);
     queue_push(ctx->fill_buff, (queue_node_t *)buff);
     signal_buffer(ctx->full_buff);
 
