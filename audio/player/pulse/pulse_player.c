@@ -75,7 +75,7 @@ static void *player_routine(void *args)
     pa_sample_spec ss;
     pa_simple *s = NULL;
     int error;
-    audio_buffer_t *buf;
+    media_buffer_t *buf;
     enum AVSampleFormat fmt;
     int first_pkt = 1;
     ret_code_t rc;
@@ -146,7 +146,7 @@ static void *player_routine(void *args)
             }
         }
 
-        if (pa_simple_write(s, buf->data[0], buf->size, &error) < 0) 
+        if (pa_simple_write(s, buf->s.audio.data[0], buf->size, &error) < 0) 
         {
             DBG_E("pa_simple_write() failed: %s\n", pa_strerror(error));
             break;

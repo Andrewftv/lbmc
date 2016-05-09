@@ -411,7 +411,7 @@ static void gl_set_viewport(player_ctx_t *ctx)
 
 static int frames = 0;
 
-static ret_code_t gl_draw_frame(video_player_h h, video_buffer_t *buff)
+static ret_code_t gl_draw_frame(video_player_h h, media_buffer_t *buff)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
@@ -419,7 +419,8 @@ static ret_code_t gl_draw_frame(video_player_h h, video_buffer_t *buff)
       
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(glGetUniformLocation(ctx->sp, "tex"), 0);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ctx->width, ctx->height, GL_RGBA, GL_UNSIGNED_BYTE, buff->buffer[0]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ctx->width, ctx->height, GL_RGBA, GL_UNSIGNED_BYTE,
+        buff->s.video.buffer[0]);
 
 #ifdef CONFIG_GL_TEXT_RENDERER
     vertices[0] = -1.0; vertices[1] = 1.0;
