@@ -247,12 +247,19 @@ static ret_code_t raspi_init(video_player_h h)
     if (ilcore_get_param(ctx->decoder, OMX_IndexParamPortDefinition, &port_param))
         goto Error;
 
-    DBG_I("Buffers: size=%d count=%d alligment=%d\n",port_param.nBufferSize, port_param.nBufferCountActual,
+    DBG_I("Video buffers: size=%d amount=%d alligment=%d\n",port_param.nBufferSize, port_param.nBufferCountActual,
         port_param.nBufferAlignment);
 
+    if (decode_setup_video_buffers(ctx->demux, port_param.nBufferCountActual, port_param.nBufferAlignment,
+        port_param.nBufferSize) != L_OK)
+    {
+        DBG_E("Unable to allocate video buffers\n");
+        goto Error;
+    }
+
     port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
-    port_param.nBufferCountActual = VIDEO_BUFFERS;
-    port_param.nBufferSize = (80 * 1024);
+    //port_param.nBufferCountActual = VIDEO_BUFFERS;
+    //port_param.nBufferSize = (80 * 1024);
 
     devode_get_video_size(ctx->demux, &width, &height);
 

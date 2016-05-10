@@ -154,6 +154,45 @@ static int get_first_audio_stream(AVFormatContext *fmt)
     return index;
 }
 
+static ret_code_t reopen_audio_stream(demux_ctx_t *ctx, int cur_inx, int new_inx)
+{
+    AVCodec *dec;
+    AVStream *st;
+
+    if (!ctx || !ctx->fmt_ctx)
+    {
+        DBG_E("Invalid input parameters\n");
+        return L_FAILED;
+    }
+
+    if (cur_inx == new_inx)
+        return L_OK; /* Nothing to do. Already opened. */
+
+    /* Close current audio stream */
+    st = ctx->fmt_ctx->streams[cur_inx];
+    avcodec_close(st->codec);
+
+    st = ctx->fmt_ctx->streams[new_inx];
+    if (!st)
+    {
+        DBG_E("Stream for index %d not fount\n", new_inx);
+        return L_FAILED;
+    }
+    dec = avcodec_find_decoder(st->codec->codec_id);
+    if (!dec)
+    {
+        DBG_E("Unable to find decoder %d\n", st->codec->codec_id);
+        return L_FAILED;
+    }
+    if (avcodec_open2(st->codec, dec, NULL) < 0)
+    {
+        DBG_E("Unable to open codec\n");
+        return L_FAILED;
+    }
+
+    return L_OK;
+}
+
 ret_code_t decode_next_audio_stream(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
@@ -218,6 +257,65 @@ ret_code_t decode_next_audio_stream(demux_ctx_h h)
     return L_OK;
 }
 
+#ifdef CONFIG_VIDEO
+ret_code_t decode_setup_video_buffers(demux_ctx_h h, int amount, int align, int len)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+    app_video_ctx_t *vctx;
+    media_buffer_t *vbuff;
+    int i;
+
+    vctx = ctx->video_ctx;
+#ifdef CONFIG_VIDEO_HW_DECODE
+    for (i = 0; i < amount; i++)
+    {
+        vbuff = (media_buffer_t *)malloc(sizeof(media_buffer_t));
+        memset(vbuff, 0, sizeof(media_buffer_t));
+        vbuff->type = MB_VIDEO_TYPE;
+        if (posix_memalign((void **)&vbuff->s.video.data, align, len))
+        {
+            DBG_E("Memory allocation failed\n");
+            return L_FAILED;
+        }
+        vbuff->s.video.buff_size = len;
+        DBG_V("Video buffer %p\n", vbuff->s.video.data);
+
+        queue_push(vctx->free_buff, (queue_node_t *)vbuff);
+    }
+#else
+    /* Allocate destination image with same resolution and RGBA pixel format */
+    for (i = 0; i < amount; i++)
+    {
+        int rc;
+
+        vbuff = (media_buffer_t *)malloc(sizeof(media_buffer_t));
+        memset(vbuff, 0, sizeof(media_buffer_t));
+        vbuff->type = MB_VIDEO_TYPE;
+
+        rc = av_image_alloc(vbuff->s.video.buffer, vbuff->s.video.linesize, vctx->codec->width, vctx->codec->height,
+                AV_PIX_FMT_RGBA, 1);
+        if (rc < 0)
+        {
+            DBG_E("Could not allocate destination video buffer\n");
+            return L_FAILED;
+        }
+        vbuff->size = rc;
+
+        queue_push(vctx->free_buff, (queue_node_t *)vbuff);
+    }
+    /* Create scale context */
+    vctx->sws = sws_getContext(vctx->codec->width, vctx->codec->height, vctx->codec->pix_fmt, vctx->codec->width,
+            vctx->codec->height, AV_PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
+    if (!vctx->sws)
+    {
+        DBG_E("Can not allocate scale format\n");
+        return L_FAILED;
+    }
+#endif
+    return L_OK;
+}
+#endif
+
 ret_code_t decode_init(demux_ctx_h *h, char *src_file)
 {
     demux_ctx_t *ctx;
@@ -252,10 +350,6 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
     {
         app_video_ctx_t *vctx;
         AVStream *video_stream = NULL;
-        int i;
-#ifndef CONFIG_VIDEO_HW_DECODE
-        int rc;
-#endif
 
         streams++;
 
@@ -298,52 +392,9 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
             vctx->fps_rate = video_stream->r_frame_rate.num;
             vctx->fps_scale = video_stream->r_frame_rate.den;
         }
-#ifdef CONFIG_VIDEO_HW_DECODE
-        for (i = 0; i < VIDEO_BUFFERS; i++)
-        {
-            media_buffer_t *vbuff;        
-
-            vbuff = (media_buffer_t *)malloc(sizeof(media_buffer_t));
-            memset(vbuff, 0, sizeof(media_buffer_t));
-            vbuff->type = MB_VIDEO_TYPE;
-            if (posix_memalign ((void **)&vbuff->s.video.data, 16, 80 * 1024))
-            {
-                DBG_E("Could not allocate destination video buffer\n");
-                return L_FAILED;
-            }
-            vbuff->s.video.buff_size = 80 * 1024;
-            DBG_I("Video buffer %p\n", vbuff->s.video.data);
-
-            queue_push(vctx->free_buff, (queue_node_t *)vbuff);
-        }
-#else
-        /* Allocate destination image with same resolution and RGBA pixel format */
-        for (i = 0; i < VIDEO_BUFFERS; i++)
-        {
-            media_buffer_t *vbuff;        
-
-            vbuff = (media_buffer_t *)malloc(sizeof(media_buffer_t));
-
-            rc = av_image_alloc(vbuff->s.video.buffer, vbuff->s.video.linesize, vctx->codec->width, vctx->codec->height,
-                AV_PIX_FMT_RGBA, 1);
-            if (rc < 0)
-            {
-                DBG_E("Could not allocate destination video buffer\n");
-                return L_FAILED;
-            }
-            vbuff->size = rc;
-
-            queue_push(vctx->free_buff, (queue_node_t *)vbuff);
-        }
-        /* Create scale context */
-        vctx->sws = sws_getContext(vctx->codec->width, vctx->codec->height, vctx->codec->pix_fmt, vctx->codec->width,
-            vctx->codec->height, AV_PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
-        if (!vctx->sws)
-        {
-            DBG_E("Can not allocate scale format\n");
-            return -1;
-        }
-#endif
+        //if (decode_setup_video_buffers(ctx, VIDEO_BUFFERS, 16, 80 * 1024) != L_OK)
+        //    return L_FAILED;
+        
         msleep_init(&vctx->empty_buff);
         msleep_init(&vctx->full_buff);
 
@@ -374,18 +425,10 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         memset(actx, 0, sizeof(app_audio_ctx_t));
         /* Get first stream instead of "best" */
         first_index = get_first_audio_stream(ctx->fmt_ctx);
-        if (first_index != stream_index)
-        {
-            AVCodec *dec = NULL;
-            AVStream *st = ctx->fmt_ctx->streams[stream_index];
+        if (reopen_audio_stream(ctx, stream_index, first_index) != L_OK)
+            return L_FAILED;
 
-            avcodec_close(st->codec);
-            st = ctx->fmt_ctx->streams[first_index];
-            dec = avcodec_find_decoder(st->codec->codec_id);
-            avcodec_open2(st->codec, dec, NULL);
-
-            stream_index = first_index;
-        }
+        stream_index = first_index;
         actx->stream_idx = stream_index;
 
         queue_init(&actx->free_buff);
