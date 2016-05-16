@@ -15,12 +15,15 @@
 
 #define PAUSE_SLEEP_US          (100 * 1000)
 #define BUFF_DONE_TIMEOUT_MS    1000
+#define VOLUME_MINIMUM          -6000  /* -60dB */
 
 typedef struct {
     pthread_t task;
 
     int pause;
     int running;
+    long volume;
+    int mute;
 
     demux_ctx_h demuxer;
     ilcore_comp_h render;
@@ -202,6 +205,7 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h, ilcore_
     memset(ctx, 0, sizeof(player_ctx_t));
     ctx->demuxer =  h;
     ctx->clock = clock;
+    ctx->volume = -1; /* Uninited */
 
     *player_ctx = ctx;
 
@@ -242,6 +246,49 @@ void audio_player_pause(audio_player_h h)
         omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
     else
         omx_clock_set_speed(ctx->clock, OMX_CLOCK_NORMAL_SPEED);
+}
+
+ret_code_t audio_player_mute(audio_player_h h)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+    long set_volume;
+    OMX_AUDIO_CONFIG_VOLUMETYPE volume;
+    ret_code_t rc;
+
+    OMX_INIT_STRUCT(volume);
+    volume.nPortIndex = IL_AUDIO_RENDER_IN_PORT;
+
+    if (!ctx->mute)
+    {
+        rc = ilcore_get_config(ctx->render, OMX_IndexConfigAudioVolume, &volume);
+        if (rc != L_OK)
+        {
+            DBG_E("Unable to get current volume\n");
+            return rc;
+        }
+        ctx->volume = volume.sVolume.nValue;
+        set_volume = VOLUME_MINIMUM;
+        
+        DBG_I("Mute audio. Prevision volume is %d dB\n", ctx->volume / 100);
+    }
+    else
+    {
+        set_volume = ctx->volume;
+
+        DBG_I("Restore audio. Current volume is %d dB\n", ctx->volume / 100);
+    }
+
+    volume.sVolume.nValue = set_volume;
+    rc = ilcore_set_config(ctx->render, OMX_IndexConfigAudioVolume, &volume);
+    if (rc != L_OK)
+    {
+        DBG_E("Unable to audio volume\n");
+        return rc;
+    }
+
+    ctx->mute = !ctx->mute;
+
+    return rc;
 }
 
 int audio_player_is_runnung(audio_player_h h)

@@ -346,7 +346,6 @@ static ret_code_t raspi_init(video_player_h h)
         }
         hdr = (OMX_BUFFERHEADERTYPE *)buffers[i]->app_data;
         hdr->nInputPortIndex = IL_VIDEO_DECODER_IN_PORT;
-        DBG_I("Setup buffer: alloc len = %d\n", hdr->nAllocLen);
     }
     err = omx_core_comp_wait_command(ctx->decoder, OMX_CommandPortEnable, IL_VIDEO_DECODER_IN_PORT, 100);
     if (err != OMX_ErrorNone)

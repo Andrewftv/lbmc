@@ -99,6 +99,14 @@ int main(int argc, char **argv)
 	hide_console_cursore();
 	set_conio_terminal_mode();
 
+    if (access(src_filename, F_OK | R_OK))
+    {
+        DBG_E("File %s not found\n", src_filename);
+
+        show_console_cursore();
+        return -1;
+    }
+
 #ifdef CONFIG_RASPBERRY_PI
     DBG_I("Init OMX components\n");
 
@@ -158,6 +166,9 @@ int main(int argc, char **argv)
 				break;
             case 'a':
                 decode_next_audio_stream(demux_ctx);
+                break;
+            case 'm':
+                audio_player_mute(aplayer_ctx);
                 break;
 			}
 		}
