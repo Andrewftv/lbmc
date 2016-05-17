@@ -184,6 +184,11 @@ void audio_player_pause(audio_player_h player_ctx)
     ctx->pause = !ctx->pause;
 }
 
+ret_code_t audio_player_mute(audio_player_h player_ctx)
+{
+    return L_OK;
+}
+
 ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h, void *clock)
 {
     pulse_player_ctx_t *ctx;
