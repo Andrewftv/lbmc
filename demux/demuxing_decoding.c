@@ -83,6 +83,7 @@ typedef struct {
 #endif
 
     msleep_h pause;
+    pthread_mutex_t lock;
 
     pthread_t task;
     int stop_decode;
@@ -94,6 +95,16 @@ static void *read_demux_data(void *ctx);
 static ret_code_t open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type);
 static ret_code_t resampling_config(app_audio_ctx_t *ctx);
 static void uninit_audio_buffers(app_audio_ctx_t *ctx);
+
+static void decode_lock(demux_ctx_t *ctx)
+{
+    pthread_mutex_lock(&ctx->lock);
+}
+
+static void decode_unlock(demux_ctx_t *ctx)
+{
+    pthread_mutex_unlock(&ctx->lock);
+}
 
 static ret_code_t timedwait_buffer(msleep_h h, int timeout)
 {
@@ -331,7 +342,9 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         DBG_E("Memory allocation failed\n");
         return L_FAILED;
     }
+    memset(ctx, 0, sizeof(demux_ctx_t));
     msleep_init(&ctx->pause);
+    pthread_mutex_init(&ctx->lock, NULL);
     /* open input file, and allocate format context */
     if (avformat_open_input(&ctx->fmt_ctx, src_file, NULL, NULL) < 0)
     {
@@ -537,6 +550,7 @@ void decode_uninit(demux_ctx_h h)
 
     if (ctx->fmt_ctx)
         avformat_close_input(&ctx->fmt_ctx);
+    pthread_mutex_destroy(&ctx->lock);
     msleep_uninit(ctx->pause);
 
     free(ctx);
@@ -1342,6 +1356,9 @@ static void *read_demux_data(void *args)
     while (av_read_frame(ctx->fmt_ctx, &pkt) >= 0 && !ctx->stop_decode)
     {
         AVPacket orig_pkt = pkt;
+
+        decode_lock(ctx);
+
         do
         {
             ret = decode_packet(&got_frame, 0, ctx, frame, &pkt);
@@ -1352,6 +1369,8 @@ static void *read_demux_data(void *args)
         }
         while (pkt.size > 0);
         av_free_packet(&orig_pkt);
+
+        decode_unlock(ctx);
     }
 
     /* flush cached frames */
