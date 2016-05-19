@@ -1340,11 +1340,8 @@ static void *read_demux_data(void *args)
     AVFrame *frame = NULL;
     demux_ctx_t *ctx = (demux_ctx_t *)args;
 
-    if (decode_is_video(ctx))
-    {
-        DBG_I("Waiting\n");
-        msleep_wait(ctx->pause, INFINITE_WAIT);
-    }
+    DBG_I("Waiting\n");
+    msleep_wait(ctx->pause, INFINITE_WAIT);
     DBG_I("Start demux task\n");
 
     frame = av_frame_alloc();

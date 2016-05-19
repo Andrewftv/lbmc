@@ -77,6 +77,9 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
     if (ilcore_set_state(ctx->render, OMX_StateExecuting) != L_OK)
         return L_FAILED;
 
+    if (!decode_is_video(ctx->demuxer))
+        decode_start_read(ctx->demuxer);
+
     DBG_I("Audio player successfuly initialized !\n");
 
     return L_OK;
