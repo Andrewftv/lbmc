@@ -121,9 +121,9 @@ static void *player_routine(void *args)
 
     ctx->running = 1;
 
-    //omx_clock_start(ctx->clock, 0);
-    //omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
-    //omx_clock_state_execute(ctx->clock);
+    omx_clock_start(ctx->clock, 0);
+    omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
+    omx_clock_state_execute(ctx->clock);
 
     while(ctx->running)
     {

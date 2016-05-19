@@ -400,9 +400,9 @@ static ret_code_t raspi_init(video_player_h h)
         DBG_I("Config codec done\n");
     }
 
-    omx_clock_start(ctx->clock, 0);
-    omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
-    omx_clock_state_execute(ctx->clock);
+    //omx_clock_start(ctx->clock, 0);
+    //omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
+    //omx_clock_state_execute(ctx->clock);
 
     DBG_I("Video player sucsessfuly initialized !\n");
     decode_start_read(ctx->demux);

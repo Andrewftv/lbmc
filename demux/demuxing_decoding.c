@@ -39,10 +39,11 @@ typedef struct {
     int frame_count;
     int stream_idx;
     int audio_streams;
-    int drop_packets;
 
     /* Destination format after resampling */
     enum AVSampleFormat dst_fmt;
+    /* Destination sample rate */
+    int sample_rate;
 } app_audio_ctx_t;
 
 #ifdef CONFIG_VIDEO
@@ -93,7 +94,7 @@ typedef struct {
 static enum AVSampleFormat planar_sample_to_same_packed(enum AVSampleFormat fmt);
 static void *read_demux_data(void *ctx);
 static ret_code_t open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type);
-static ret_code_t resampling_config(app_audio_ctx_t *ctx);
+static ret_code_t resampling_config(app_audio_ctx_t *ctx, int reinit);
 static void uninit_audio_buffers(app_audio_ctx_t *ctx);
 
 static void decode_lock(demux_ctx_t *ctx)
@@ -212,6 +213,7 @@ ret_code_t decode_next_audio_stream(demux_ctx_h h)
     AVCodecContext *dec_ctx = NULL;
     AVCodec *dec = NULL;
     AVDictionary *opts = NULL;
+    ret_code_t rc = L_OK;
 
     if (ctx->audio_ctx->audio_streams < 2)
         return L_FAILED;
@@ -231,11 +233,8 @@ ret_code_t decode_next_audio_stream(demux_ctx_h h)
 
     DBG_I("Next audio stream index is %d\n", index);
 
-    /* TODO Here we need real synchronization */
-    ctx->audio_ctx->drop_packets = 1;
-    usleep(50000);
+    decode_lock(ctx);
 
-    uninit_audio_buffers(ctx->audio_ctx);
     if (ctx->audio_ctx->swr)
         swr_free(&ctx->audio_ctx->swr);
     ctx->audio_ctx->swr = NULL;
@@ -247,25 +246,28 @@ ret_code_t decode_next_audio_stream(demux_ctx_h h)
     if (!dec)
     {
         DBG_E("Failed to find %s codec\n", av_get_media_type_string(AVMEDIA_TYPE_AUDIO));
-        return L_FAILED;
+        rc = L_FAILED;
+        goto Exit;
     }
 
     /* Init the decoders, with or without reference counting */
     if (avcodec_open2(dec_ctx, dec, &opts) < 0)
     {
         DBG_E("Failed to open %s codec\n", av_get_media_type_string(AVMEDIA_TYPE_AUDIO));
-        return L_FAILED;
+        rc = L_FAILED;
+        goto Exit;
     }
 
     ctx->audio_ctx->stream_idx = index;
     ctx->audio_ctx->codec = st->codec;
 
-    if (resampling_config(ctx->audio_ctx))
-        return L_FAILED;
+    if (resampling_config(ctx->audio_ctx, 1))
+        rc = L_FAILED;
 
-    ctx->audio_ctx->drop_packets = 0;
+Exit:
+    decode_unlock(ctx);
 
-    return L_OK;
+    return rc;
 }
 
 #ifdef CONFIG_VIDEO
@@ -405,8 +407,6 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
             vctx->fps_rate = video_stream->r_frame_rate.num;
             vctx->fps_scale = video_stream->r_frame_rate.den;
         }
-        //if (decode_setup_video_buffers(ctx, VIDEO_BUFFERS, 16, 80 * 1024) != L_OK)
-        //    return L_FAILED;
         
         msleep_init(&vctx->empty_buff);
         msleep_init(&vctx->full_buff);
@@ -457,7 +457,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         msleep_init(&actx->empty_buff);
         msleep_init(&actx->full_buff);
 
-        if (resampling_config(actx))
+        if (resampling_config(actx, 0))
             return L_FAILED;
 
     }
@@ -941,9 +941,6 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
     size_t unpadded_linesize;
     media_buffer_t *buff;
 
-    if (ctx->drop_packets)
-        return 0;
-
     if (!ctx->swr)
         return -1;
 
@@ -1281,15 +1278,17 @@ static ret_code_t open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, 
     return L_OK;
 }
 
-static ret_code_t resampling_config(app_audio_ctx_t *ctx)
+static ret_code_t resampling_config(app_audio_ctx_t *ctx, int reinit)
 {
     ret_code_t ret;
     enum AVSampleFormat dst_fmt;
     char chan_layout_str[32];
 
-    if ((ret = init_audio_buffers(ctx)) != L_OK)
-        return ret;    
-
+    if (!reinit)
+    {
+        if ((ret = init_audio_buffers(ctx)) != L_OK)
+            return ret;    
+    }
     /* create resampler context */
     ctx->swr = swr_alloc();
     if (!ctx->swr)
@@ -1309,18 +1308,26 @@ static ret_code_t resampling_config(app_audio_ctx_t *ctx)
     /* Destination layout */
     /* Still only stereo output */
     av_opt_set_int(ctx->swr, "out_channel_layout", AV_CH_LAYOUT_STEREO, 0);
-    av_opt_set_int(ctx->swr, "out_sample_rate", ctx->codec->sample_rate, 0);
-    dst_fmt = planar_sample_to_same_packed(ctx->codec->sample_fmt);
-    av_opt_set_sample_fmt(ctx->swr, "out_sample_fmt", dst_fmt, 0);
+    if (!reinit)
+    {
+        av_opt_set_int(ctx->swr, "out_sample_rate", ctx->codec->sample_rate, 0);
+        dst_fmt = planar_sample_to_same_packed(ctx->codec->sample_fmt);
+        av_opt_set_sample_fmt(ctx->swr, "out_sample_fmt", dst_fmt, 0);
 
+        ctx->dst_fmt = dst_fmt;
+        ctx->sample_rate = ctx->codec->sample_rate;
+    }
+    else
+    {
+        av_opt_set_int(ctx->swr, "out_sample_rate", ctx->sample_rate, 0);
+        av_opt_set_sample_fmt(ctx->swr, "out_sample_fmt", ctx->dst_fmt, 0);
+    }
     /* initialize the resampling context */
     if (swr_init(ctx->swr) < 0)
     {
         DBG_E("Failed to initialize the resampling context\n");
         return L_FAILED;
     }
-
-    ctx->dst_fmt = dst_fmt;
 
     return ret;
 }
