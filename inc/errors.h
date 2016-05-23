@@ -7,7 +7,8 @@ typedef enum {
     L_TIMEOUT = 1,
     L_STOPPING = 2,
     /* Errors */
-    L_FAILED = -1
+    L_FAILED = -1,
+    L_MEMORY = -2
 } ret_code_t;
 
 #endif

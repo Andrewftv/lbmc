@@ -3,7 +3,7 @@ include $(TOP_DIR)/envir.mak
 
 SRC:=logs.c timeutils.c queue.c list.c msleep.c
 ifdef CONFIG_RASPBERRY_PI
-SRC += ilcore.c omxclock.c
+SRC += ilcore.c omxclock.c jpeg.c
 endif
 
 LIBA=libutils.a

@@ -173,7 +173,8 @@ OMX_ERRORTYPE omx_core_comp_wait_event(ilcore_comp_h h, OMX_EVENTTYPE eventType,
 			}
             else if(event->eEvent == eventType)
             {
-                DBG_I("Got event\n");
+                DBG_I("Got event: '%s', %d events remain in the queue\n", omx_event2str(event->eEvent),
+                    slist_get_count(ctx->event_list));
                 rc = OMX_ErrorNone;
             }
             else
@@ -270,7 +271,8 @@ ret_code_t ilcore_add_comp_event(ilcore_comp_h h, OMX_EVENTTYPE eEvent, OMX_U32 
     omx_event_t *event;
     ilcore_comp_ctx_t *ctx = (ilcore_comp_ctx_t *)h;
 
-    DBG_I("Add event: '%s' command: '%s' data: %d\n", omx_event2str(eEvent), omx_cmd2str(nData1), nData2);
+    DBG_I("Add event: '%s' '%s' command: '%s' data: %d\n", ctx->name, omx_event2str(eEvent), omx_cmd2str(nData1),
+        nData2);
 
     event = (omx_event_t *)malloc(sizeof(omx_event_t));
     if (!event)

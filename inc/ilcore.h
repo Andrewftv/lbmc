@@ -27,6 +27,11 @@
 #define IL_AUDIO_RENDER_IN_PORT     100
 #define IL_AUDIO_RENDER_CLOCK_PORT  101
 
+#define IL_IMAGE_DECODER_IN_PORT    320
+#define IL_IMAGE_DECODER_OUT_PORT   321
+#define IL_IMAGE_RESIZE_IN_PORT     60
+#define IL_IMAGE_RESIZE_OUT_PORT    61
+
 #define OMX_INIT_STRUCT(a) do { \
     memset(&(a), 0, sizeof(a)); \
     (a).nSize = sizeof(a); \
