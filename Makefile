@@ -7,7 +7,7 @@ CONF_FILES := $(wildcard $(DISTCFGDIR)/*.cfg)
 
 TARGET=lbmc
 
-SUBDIRS := utils audio demux
+SUBDIRS := utils audio demux ui
 ifdef CONFIG_VIDEO
 SUBDIRS+=video
 endif

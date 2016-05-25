@@ -10,12 +10,14 @@
 #include <IL/OMX_Broadcom.h>
 #include "ilcore.h"
 #include "omxclock.h"
+#include "guiapi.h"
 #endif
 
 #include "log.h"
 #include "decode.h"
 #include "audio_player.h"
 #include "video_player.h"
+#include "hw_img_decode.h"
 
 struct termios orig_termios;
 
@@ -72,7 +74,6 @@ int getch()
         return ch;
 }
 
-
 int main(int argc, char **argv)
 {
 	demux_ctx_h demux_ctx = NULL;
@@ -81,6 +82,11 @@ int main(int argc, char **argv)
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
     ilcore_comp_h clock = NULL;
+    gui_h hgui = NULL;
+    win_h hwin = NULL;
+    win_h status_window = NULL;
+    int show_info = 0;
+    int is_muted, is_pause = 0;
 #else
     void *clock = NULL;
 #endif
@@ -123,7 +129,7 @@ int main(int argc, char **argv)
 
 #ifdef CONFIG_RASPBERRY_PI
     hdmi_init_display(&tv_state);
-
+    gui_init(&hgui);
     clock = create_omx_clock();
     if (!clock)
         goto end;
@@ -159,16 +165,102 @@ int main(int argc, char **argv)
 			case ' ':
 #ifdef CONFIG_VIDEO
                 if (decode_is_video(demux_ctx))
-                    video_player_pause(&vplayer_ctx);
+                    is_pause = video_player_pause_toggle(&vplayer_ctx);
 #endif
                 if (decode_is_audio(demux_ctx))
-				    audio_player_pause(aplayer_ctx);
+				    is_pause = audio_player_pause_toggle(aplayer_ctx);
+
+                if (is_pause)
+                {
+                    image_h h_img;
+
+                    if (!status_window)
+                        window_init(hgui, &status_window, 1742, 50, 128, 128);
+                    gui_win_clear_window(status_window);
+
+                    gui_image_load(status_window, "/usr/share/images/pause.png", &h_img);
+                    gui_image_draw(status_window, h_img, 0, 0, 0xff);
+                    gui_image_unload(status_window, h_img);
+
+                    gui_window_flush(status_window);
+                }
+                else
+                {
+                    if (status_window)
+                    {
+                        if (is_muted)
+                        {
+                            image_h h_img;
+
+                            gui_win_clear_window(status_window);
+                            gui_image_load(status_window, "/usr/share/images/muted.png", &h_img);
+                            gui_image_draw(status_window, h_img, 0, 0, 0xff);
+                            gui_image_unload(status_window, h_img);
+
+                            gui_window_flush(status_window);
+                        }
+                        else
+                        {
+                            window_uninit(status_window);
+                            status_window = NULL;
+                        }
+                    }
+                }
 				break;
             case 'a':
                 decode_next_audio_stream(demux_ctx);
                 break;
             case 'm':
-                audio_player_mute(aplayer_ctx);
+                if (is_pause)
+                    break;
+
+                if (audio_player_mute_toggle(aplayer_ctx, &is_muted) != L_OK)
+                    break;
+
+                if (is_muted)
+                {
+                    image_h h_img;
+
+                    if (!status_window)
+                        window_init(hgui, &status_window, 1742, 50, 128, 128);
+                    gui_win_clear_window(status_window);
+
+                    gui_image_load(status_window, "/usr/share/images/muted.png", &h_img);
+                    gui_image_draw(status_window, h_img, 0, 0, 0xff);
+                    gui_image_unload(status_window, h_img);
+
+                    gui_window_flush(status_window);
+                }
+                else
+                {
+                    if (status_window)
+                    {
+                        window_uninit(status_window);
+                        status_window = NULL;
+                    }
+                }
+                break;
+            case 'i':
+                {
+                    show_info = !show_info;
+                    if (show_info)
+                    {
+                        image_h h_img;
+
+                        window_init(hgui, &hwin, 100, 100, 600, 600);
+                        gui_win_clear_window(hwin);
+
+                        gui_image_load(hwin, "/bin/test.jpg", &h_img);
+                        gui_image_draw(hwin, h_img, 0, 0, 0x80);
+                        gui_image_unload(hwin, h_img);
+
+                        gui_window_flush(hwin);
+                    }
+                    else
+                    {
+                        window_uninit(hwin);
+                    }
+                }
                 break;
 			}
 		}
@@ -187,6 +279,7 @@ end:
 #ifdef CONFIG_VIDEO
 	DBG_I("Stopping video player... \n");
 #ifdef CONFIG_RASPBERRY_PI
+    gui_uninit(hgui);
     hdmi_uninit_display(&tv_state);
 #endif
 	video_player_stop(&vplayer_ctx);

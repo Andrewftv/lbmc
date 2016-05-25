@@ -58,6 +58,7 @@ int msleep_wait(msleep_h h, int timeout)
         pthread_mutex_lock(&ctx->mutex);
         pthread_cond_wait(&ctx->cond, &ctx->mutex);
         pthread_mutex_unlock(&ctx->mutex);
+        
         return MSLEEP_INTERRUPT;
     }
  
@@ -75,14 +76,22 @@ int msleep_wait(msleep_h h, int timeout)
 int msleep_wakeup(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
- 
-    return pthread_cond_signal(&ctx->cond);
+
+    pthread_mutex_lock(&ctx->mutex);
+    pthread_cond_signal(&ctx->cond);
+    pthread_mutex_unlock(&ctx->mutex);
+
+    return 0;
 }
 
 int msleep_wakeup_broadcast(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
- 
-    return pthread_cond_broadcast(&ctx->cond);
+
+    pthread_mutex_lock(&ctx->mutex);
+    pthread_cond_broadcast(&ctx->cond);
+    pthread_mutex_unlock(&ctx->mutex);
+
+    return 0;
 }
 

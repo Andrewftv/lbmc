@@ -240,7 +240,7 @@ void audio_player_stop(audio_player_h h)
     free(ctx);
 }
 
-void audio_player_pause(audio_player_h h)
+int audio_player_pause_toggle(audio_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
     
@@ -249,9 +249,11 @@ void audio_player_pause(audio_player_h h)
         omx_clock_set_speed(ctx->clock, OMX_CLOCK_PAUSE_SPEED);
     else
         omx_clock_set_speed(ctx->clock, OMX_CLOCK_NORMAL_SPEED);
+
+    return ctx->pause;
 }
 
-ret_code_t audio_player_mute(audio_player_h h)
+ret_code_t audio_player_mute_toggle(audio_player_h h, int *is_muted)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
     long set_volume;
@@ -290,6 +292,8 @@ ret_code_t audio_player_mute(audio_player_h h)
     }
 
     ctx->mute = !ctx->mute;
+    if (is_muted)
+        *is_muted = ctx->mute;
 
     return rc;
 }

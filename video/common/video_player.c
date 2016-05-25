@@ -10,10 +10,10 @@
 
 #include <libavutil/avutil.h>
 
-void video_player_pause(video_player_context *player_ctx)
+int video_player_pause_toggle(video_player_context *player_ctx)
 {
     if (!player_ctx)
-        return;
+        return 0;
 
     if (player_ctx->state == PLAYER_PAUSE)
     {
@@ -25,6 +25,8 @@ void video_player_pause(video_player_context *player_ctx)
         player_ctx->state = PLAYER_PAUSE;
         player_ctx->corrected_pts = player_ctx->last_pts;
     }
+
+    return (player_ctx->state == PLAYER_PAUSE);
 }
 
 void video_player_stop(video_player_context *player_ctx)

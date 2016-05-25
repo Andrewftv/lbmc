@@ -1,12 +1,12 @@
 TOP_DIR=..
 include $(TOP_DIR)/envir.mak
 
-SRC:=logs.c timeutils.c queue.c list.c msleep.c
+SRC:=
 ifdef CONFIG_RASPBERRY_PI
-SRC += ilcore.c omxclock.c hw_img_decode.c
+SRC += draw_prim.c init_gui.c image.c
 endif
 
-LIBA=libutils.a
+LIBA=libui.a
 OBJ_PATH:=.
 include $(TOP_DIR)/Makefile.include
 

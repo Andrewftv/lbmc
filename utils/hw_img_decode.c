@@ -4,8 +4,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <VG/openvg.h>
 
-#include "jpeg.h"
+#include "hw_img_decode.h"
 #include "log.h"
 #include "ilcore.h"
 #include "queue.h"
@@ -27,14 +28,18 @@ typedef struct {
     queue_h in_queue;
     OMX_BUFFERHEADERTYPE *out_buffer;
 
+    int width;
+    int height;
+    VGImageFormat rgb_format;
+
     int done;
     msleep_h fill_done;
-} jpeg_ctx_t;
+} img_ctx_t;
 
-static OMX_ERRORTYPE jpeg_empty_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
+static OMX_ERRORTYPE img_empty_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
 {
     buff_header_t *buf = (buff_header_t *)pBuffer->pAppPrivate;
-    jpeg_ctx_t *ctx = (jpeg_ctx_t *)ilcore_get_app_data(pAppData);
+    img_ctx_t *ctx = (img_ctx_t *)ilcore_get_app_data(pAppData);
 
     if (!ctx || !buf)
     {
@@ -48,9 +53,9 @@ static OMX_ERRORTYPE jpeg_empty_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR p
     return OMX_ErrorNone;
 }
 
-static OMX_ERRORTYPE jpeg_fill_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
+static OMX_ERRORTYPE img_fill_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
 {
-    jpeg_ctx_t *ctx = (jpeg_ctx_t *)pBuffer->pAppPrivate;
+    img_ctx_t *ctx = (img_ctx_t *)pBuffer->pAppPrivate;
 
     DBG_I("Fill buffer done. Length = %d\n", pBuffer->nFilledLen);
 
@@ -60,13 +65,13 @@ static OMX_ERRORTYPE jpeg_fill_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pA
     return OMX_ErrorNone;
 }
 
-static ret_code_t jpeg_comp_init(ilcore_comp_h *comp, char *comp_name)
+static ret_code_t img_comp_init(ilcore_comp_h *comp, char *comp_name)
 {
     OMX_CALLBACKTYPE cb;
 
     cb.EventHandler = il_event_handler;
-    cb.EmptyBufferDone = jpeg_empty_buffer_done;
-    cb.FillBufferDone = jpeg_fill_buffer_done;
+    cb.EmptyBufferDone = img_empty_buffer_done;
+    cb.FillBufferDone = img_fill_buffer_done;
 
     if (ilcore_init_comp(comp, &cb, comp_name))
         return L_FAILED;
@@ -77,7 +82,7 @@ static ret_code_t jpeg_comp_init(ilcore_comp_h *comp, char *comp_name)
     return L_OK;
 }
 
-static ret_code_t jpeg_setup_decoder(jpeg_ctx_t *ctx)
+static ret_code_t img_setup_decoder(img_ctx_t *ctx, image_type_t img_type)
 {
     OMX_IMAGE_PARAM_PORTFORMATTYPE img_format;
     OMX_PARAM_PORTDEFINITIONTYPE portdef;
@@ -89,8 +94,18 @@ static ret_code_t jpeg_setup_decoder(jpeg_ctx_t *ctx)
 
     OMX_INIT_STRUCT(img_format);
     img_format.nPortIndex = IL_IMAGE_DECODER_IN_PORT;
-    img_format.eCompressionFormat = OMX_IMAGE_CodingJPEG;
-
+    switch (img_type)
+    {
+    case JPEG_IMG_FILE:
+        img_format.eCompressionFormat = OMX_IMAGE_CodingJPEG;
+        break;
+    case PNG_IMG_FILE:
+        img_format.eCompressionFormat = OMX_IMAGE_CodingPNG;
+        break;
+    default:
+        DBG_E("Unknown file type\n");
+        return L_FAILED;
+    }
     if (ilcore_set_param(ctx->decoder, OMX_IndexParamImagePortFormat, &img_format) != L_OK)
         return L_FAILED;
 
@@ -145,7 +160,7 @@ static int get_file_size(int fd)
     return s.st_size;
 }
 
-static ret_code_t jpeg_port_settings_changed(jpeg_ctx_t *ctx)
+static ret_code_t img_port_settings_changed(img_ctx_t *ctx)
 {
     OMX_PARAM_PORTDEFINITIONTYPE portdef;
     uint32_t w, h;
@@ -187,7 +202,7 @@ static ret_code_t jpeg_port_settings_changed(jpeg_ctx_t *ctx)
     portdef.format.image.eColorFormat = OMX_COLOR_Format32bitABGR8888;
     portdef.format.image.nFrameWidth = w;
     portdef.format.image.nFrameHeight = h;
-    portdef.format.image.nStride = 0;
+    portdef.format.image.nStride = w * 4; /* TODO */
     portdef.format.image.nSliceHeight = 0;
     portdef.format.image.bFlagErrorConcealment = OMX_FALSE;
     if (ilcore_set_param(ctx->resize, OMX_IndexParamPortDefinition, &portdef) != L_OK)
@@ -197,6 +212,10 @@ static ret_code_t jpeg_port_settings_changed(jpeg_ctx_t *ctx)
         return L_FAILED;
 
     ilcore_set_state(ctx->resize, OMX_StateExecuting);
+
+    ctx->width = portdef.format.image.nFrameWidth;
+    ctx->height = portdef.format.image.nFrameHeight;
+    ctx->rgb_format = VG_sABGR_8888; /* TODO */
 
     DBG_I("Width: %u Height: %u Output Color Format: 0x%x Buffer Size: %u\n", portdef.format.image.nFrameWidth,
 	    portdef.format.image.nFrameHeight, portdef.format.image.eColorFormat, portdef.nBufferSize);
@@ -220,12 +239,30 @@ static ret_code_t jpeg_port_settings_changed(jpeg_ctx_t *ctx)
     return L_OK;
 }
 
-ret_code_t jpeg_decode(jpeg_h h)
+uint8_t *img_get_raw_buffer(img_h hctx, int *w, int *h, VGImageFormat *rgb)
 {
-    jpeg_ctx_t *ctx = (jpeg_ctx_t *)h;
+    img_ctx_t *ctx = (img_ctx_t *)hctx;
+
+    if (!ctx || !ctx->done)
+    {
+        DBG_E("Image raw buffer not ready\n");
+        return NULL;
+    }
+
+    *w = ctx->width;
+    *h = ctx->height;
+    *rgb = ctx->rgb_format;
+
+    return ctx->out_buffer->pBuffer;
+}
+
+ret_code_t img_decode(img_h h)
+{
+    img_ctx_t *ctx = (img_ctx_t *)h;
     buff_header_t *hdr;
-    int img_size, size;
+    int img_size, size, rc = 0;
     OMX_ERRORTYPE err;
+    int count = 0;
     
     img_size = get_file_size(ctx->fd);
     if (img_size < 0)
@@ -267,7 +304,7 @@ ret_code_t jpeg_decode(jpeg_h h)
     {
         DBG_I("Got OMX_EventPortSettingsChanged\n");
     }
-    jpeg_port_settings_changed(ctx);
+    img_port_settings_changed(ctx);
 
     ctx->done = 0;
     ctx->out_buffer->pAppPrivate = ctx;
@@ -289,30 +326,36 @@ ret_code_t jpeg_decode(jpeg_h h)
         DBG_E("Resizer did not receive OMX_EventBufferFlag\n");
     }
 
-    if (!ctx->done)
+    while (!ctx->done && (rc = msleep_wait(ctx->fill_done, 10)) == MSLEEP_TIMEOUT)
     {
-        if (msleep_wait(ctx->fill_done, 500) == MSLEEP_TIMEOUT)
-            return L_FAILED;
+        count++;
+        if (count == 100)
+            break;
+    }
+    if (count == 100)
+    {   
+        DBG_E("Wait timeout. Done = %d\n", ctx->done);
+        return L_FAILED;
     }
 
-    DBG_I("JPEG image successfuly decoded\n");
+    DBG_I("JPEG image successfuly decoded. Wait %d ms, rc = %d\n", count * 10, rc);
 
     return L_OK;
 }
 
-ret_code_t jpeg_init(jpeg_h *h, char *file)
+ret_code_t img_init(img_h *h, image_type_t img_type, char *file)
 {
-    jpeg_ctx_t *ctx;
+    img_ctx_t *ctx;
     ret_code_t rc = L_OK;
 
     *h = NULL;
-    ctx = (jpeg_ctx_t *)malloc(sizeof(jpeg_ctx_t));
+    ctx = (img_ctx_t *)malloc(sizeof(img_ctx_t));
     if (!ctx)
     {
         DBG_E("Unable to allocate memory\n");
         return L_MEMORY;
     }
-    memset(ctx, 0, sizeof(jpeg_ctx_t));
+    memset(ctx, 0, sizeof(img_ctx_t));
 
     msleep_init(&ctx->fill_done);
     queue_init(&ctx->in_queue);
@@ -325,7 +368,7 @@ ret_code_t jpeg_init(jpeg_h *h, char *file)
         goto Error;
     }
 
-    if (jpeg_comp_init(&ctx->decoder, "OMX.broadcom.image_decode") != L_OK)
+    if (img_comp_init(&ctx->decoder, "OMX.broadcom.image_decode") != L_OK)
     {
         DBG_E("Unable to create image decoder\n");
         rc = L_FAILED;
@@ -333,14 +376,14 @@ ret_code_t jpeg_init(jpeg_h *h, char *file)
     }
     ilcore_set_app_data(ctx->decoder, ctx);
 
-    if (jpeg_comp_init(&ctx->resize, "OMX.broadcom.resize") != L_OK)
+    if (img_comp_init(&ctx->resize, "OMX.broadcom.resize") != L_OK)
     {
         DBG_E("Unable to create image resizer\n");
         rc = L_FAILED;
         goto Error;
     }
 
-    if (jpeg_setup_decoder(ctx) != L_OK)
+    if (img_setup_decoder(ctx, img_type) != L_OK)
     {
         DBG_E("Unable to setup image decoder\n");
         rc = L_FAILED;
@@ -352,14 +395,14 @@ ret_code_t jpeg_init(jpeg_h *h, char *file)
     return L_OK;
 
 Error:
-    jpeg_uninit(ctx);
+    img_uninit(ctx);
     
     return rc;
 }
 
-void jpeg_uninit(jpeg_h h)
+void img_uninit(img_h h)
 {
-    jpeg_ctx_t *ctx = (jpeg_ctx_t *)h;
+    img_ctx_t *ctx = (img_ctx_t *)h;
     buff_header_t *hdr;
 
     if (!ctx)

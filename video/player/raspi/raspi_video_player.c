@@ -170,7 +170,7 @@ static ret_code_t raspi_init(video_player_h h)
     OMX_ERRORTYPE err;
     media_buffer_t *buffers[VIDEO_BUFFERS];
 
-    video_player_pause(ctx->parent);
+    video_player_pause_toggle(ctx->parent);
 
     if (decode_get_codec_id(ctx->demux, &codec_id) != L_OK)
     {   
@@ -406,7 +406,7 @@ static ret_code_t raspi_init(video_player_h h)
 
     DBG_I("Video player sucsessfuly initialized !\n");
     decode_start_read(ctx->demux);
-    video_player_pause(ctx->parent);
+    video_player_pause_toggle(ctx->parent);
 
     return L_OK;
 
