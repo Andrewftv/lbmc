@@ -33,7 +33,7 @@ typedef enum {
 ret_code_t img_init(img_h *h, image_type_t type, char *file);
 void img_uninit(img_h h);
 
-ret_code_t img_decode(img_h h);
+ret_code_t img_decode(img_h h, int width, int height);
 uint8_t *img_get_raw_buffer(img_h hctx, int *w, int *h, VGImageFormat *rgb);
 
 #endif

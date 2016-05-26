@@ -196,7 +196,7 @@ int main(int argc, char **argv)
                         window_init(hgui, &status_window, 1742, 50, 128, 128);
                     gui_win_clear_window(status_window);
 
-                    gui_image_load(status_window, "/usr/share/images/pause.png", &h_img);
+                    gui_image_load(status_window, "/usr/share/images/pause.png", -1, -1, &h_img);
                     gui_image_draw(status_window, h_img, 0, 0, 0xff);
                     gui_image_unload(status_window, h_img);
 
@@ -211,7 +211,7 @@ int main(int argc, char **argv)
                             image_h h_img;
 
                             gui_win_clear_window(status_window);
-                            gui_image_load(status_window, "/usr/share/images/muted.png", &h_img);
+                            gui_image_load(status_window, "/usr/share/images/muted.png", -1, -1, &h_img);
                             gui_image_draw(status_window, h_img, 0, 0, 0xff);
                             gui_image_unload(status_window, h_img);
 
@@ -243,7 +243,7 @@ int main(int argc, char **argv)
                         window_init(hgui, &status_window, 1742, 50, 128, 128);
                     gui_win_clear_window(status_window);
 
-                    gui_image_load(status_window, "/usr/share/images/muted.png", &h_img);
+                    gui_image_load(status_window, "/usr/share/images/muted.png", -1, -1, &h_img);
                     gui_image_draw(status_window, h_img, 0, 0, 0xff);
                     gui_image_unload(status_window, h_img);
 
@@ -268,7 +268,7 @@ int main(int argc, char **argv)
                         window_init(hgui, &hwin, 100, 100, 600, 600);
                         gui_win_clear_window(hwin);
 
-                        gui_image_load(hwin, "/bin/test.jpg", &h_img);
+                        gui_image_load(hwin, "/bin/test.jpg", 151, 223, &h_img);
                         gui_image_draw(hwin, h_img, 0, 0, 0x80);
                         gui_image_unload(hwin, h_img);
 

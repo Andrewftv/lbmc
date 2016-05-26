@@ -178,7 +178,7 @@ static int get_file_size(int fd)
     return s.st_size;
 }
 
-static ret_code_t img_port_settings_changed(img_ctx_t *ctx)
+static ret_code_t img_port_settings_changed(img_ctx_t *ctx, int width, int height)
 {
     OMX_PARAM_PORTDEFINITIONTYPE portdef;
     uint32_t w, h;
@@ -190,8 +190,14 @@ static ret_code_t img_port_settings_changed(img_ctx_t *ctx)
     if (ilcore_get_param(ctx->decoder, OMX_IndexParamPortDefinition, &portdef) != L_OK)
         return L_FAILED;
 
-    w = portdef.format.image.nFrameWidth;
-    h = portdef.format.image.nFrameHeight;
+    if (width < 0)
+        w = portdef.format.image.nFrameWidth;
+    else
+        w = width;
+    if (height < 0)
+        h = portdef.format.image.nFrameHeight;
+    else
+        h = height;
 
     DBG_I("JPEG image size %dx%d\n", w, h);
 
@@ -274,7 +280,7 @@ uint8_t *img_get_raw_buffer(img_h hctx, int *w, int *h, VGImageFormat *rgb)
     return ctx->out_buffer->pBuffer;
 }
 
-ret_code_t img_decode(img_h h)
+ret_code_t img_decode(img_h h, int width, int height)
 {
     img_ctx_t *ctx = (img_ctx_t *)h;
     buff_header_t *hdr;
@@ -322,7 +328,7 @@ ret_code_t img_decode(img_h h)
     {
         DBG_I("Got OMX_EventPortSettingsChanged\n");
     }
-    img_port_settings_changed(ctx);
+    img_port_settings_changed(ctx, width, height);
 
     ctx->done = 0;
     ctx->out_buffer->pAppPrivate = ctx;

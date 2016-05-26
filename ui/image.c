@@ -73,7 +73,7 @@ static VGImageFormat get_image_format(image_ctx_t *ctx)
 	return rgba_format;
 }
 
-static uint8_t *get_uncompressed_buffer(image_ctx_t *ctx, char *image_path)
+static uint8_t *get_uncompressed_buffer(image_ctx_t *ctx, char *image_path, int width, int height)
 {
 	uint8_t *buffer = NULL;
 	image_type_t img_type;
@@ -87,7 +87,7 @@ static uint8_t *get_uncompressed_buffer(image_ctx_t *ctx, char *image_path)
     if (img_init(&ctx->img, img_type, image_path) != L_OK)
         return NULL;
 
-    if (img_decode(ctx->img) != L_OK)
+    if (img_decode(ctx->img, width, height) != L_OK)
         return NULL;
 
     buffer = img_get_raw_buffer(ctx->img, &ctx->width, &ctx->height, &ctx->rgb_format);
@@ -180,7 +180,7 @@ Exit:
 	return rc;
 }
 
-int gui_image_load(win_h hwin, char *image_path, image_h *h)
+int gui_image_load(win_h hwin, char *image_path, int width, int height, image_h *h)
 {
 	image_ctx_t *ctx;
 	uint8_t *buffer;
@@ -198,7 +198,7 @@ int gui_image_load(win_h hwin, char *image_path, image_h *h)
 	ctx->image = VG_INVALID_HANDLE;
     ctx->depth = 4; /* TODO */
 
-	buffer = get_uncompressed_buffer(ctx, image_path);
+	buffer = get_uncompressed_buffer(ctx, image_path, width, height);
 	if (!buffer)
     {
         DBG_E("Unable get image raw buffer\n");

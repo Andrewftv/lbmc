@@ -98,7 +98,7 @@ int gui_draw_ellipse(win_h hwin, int x, int y, int w, int h, int filled,
 int gui_draw_round_rect(win_h hwin, VC_RECT_T *rect, int arcw, int arch,
 	int filled, uint32_t color);
 
-int gui_image_load(win_h hwin, char *image_path, image_h *h);
+int gui_image_load(win_h hwin, char *image_path, int width, int height, image_h *h);
 void gui_image_unload(win_h hwin, image_h h);
 int gui_image_draw(win_h hwin, image_h h, int x, int y, uint8_t alpha);
 int gui_image_get_width(image_h h);
