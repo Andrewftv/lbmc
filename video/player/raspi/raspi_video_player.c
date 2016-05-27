@@ -38,6 +38,8 @@ typedef struct {
     ilcore_tunnel_h tunnel_sched;
     ilcore_tunnel_h tunnel_clock;
 
+    int eos;
+
     video_player_context *parent;
 } player_ctx_t;
 
@@ -137,15 +139,99 @@ static ret_code_t av_codecid2max_type(enum AVCodecID codec_id, OMX_VIDEO_CODINGT
         break;
     default:
         DBG_E("Unknown codec ID: %d\n", codec_id);
-        return L_FAILED;
+        *coding_type = OMX_VIDEO_CodingAutoDetect;
+        break;
     }
 
     return L_OK;
 }
 
+static void raspi_release_buffers(player_ctx_t *ctx)
+{
+    media_buffer_t *buffers[VIDEO_BUFFERS];
+    OMX_ERRORTYPE err;
+    int i;
+
+    if (ilcore_disable_port(ctx->decoder, IL_VIDEO_DECODER_IN_PORT, 0) != L_OK)
+        return;
+
+    for (i = 0; i < VIDEO_BUFFERS; i++)
+    {
+        OMX_BUFFERHEADERTYPE *hdr;
+
+        buffers[i] = decode_get_free_video_buffer(ctx->demux);
+        if (!buffers[i])
+        {
+            DBG_E("Can not get demuxer buffer #%d\n", i);
+            continue;
+        }
+        hdr = buffers[i]->app_data;
+        err = OMX_FreeBuffer(ilcore_get_handle(ctx->decoder), IL_VIDEO_DECODER_IN_PORT, hdr);
+        if (err != OMX_ErrorNone)
+        {
+            DBG_E("OMX_UseBuffer failed. err=%d index=%d\n", err, i);
+            return;
+        }
+    }
+    err = omx_core_comp_wait_command(ctx->decoder, OMX_CommandPortDisable, IL_VIDEO_DECODER_IN_PORT, 2000);
+    if (err != OMX_ErrorNone)
+    {
+        DBG_E("Wait event failed. err=0x%x\n", err);
+        return;
+    }
+
+    for (i = 0; i < VIDEO_BUFFERS; i++)
+        if (buffers[i])
+            decode_release_video_buffer(ctx->demux, buffers[i]);
+}
+
+static void eof_callback(void *context)
+{
+    player_ctx_t *ctx = (player_ctx_t *)context;
+
+    ctx->eos = 1;
+}
+
+static void wait_complition(player_ctx_t *ctx)
+{
+    media_buffer_t *buf;
+    OMX_BUFFERHEADERTYPE *hdr;
+    OMX_ERRORTYPE err;
+
+    if (ctx->parent->stop)
+        return; /* Force stop player by user */
+
+    buf = decode_get_free_video_buffer(ctx->demux);
+    if (!buf)
+    {
+        DBG_E("Unable to get free video buffer\n");
+        return;
+    }
+    hdr = (OMX_BUFFERHEADERTYPE *)buf->app_data;
+    hdr->pAppPrivate = buf;
+    hdr->nOffset = 0;
+    hdr->nFilledLen = 0;
+    hdr->nTimeStamp = to_omx_time(0);
+    hdr->nFlags = OMX_BUFFERFLAG_ENDOFFRAME | OMX_BUFFERFLAG_EOS | OMX_BUFFERFLAG_TIME_UNKNOWN;
+
+    err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->decoder), hdr);
+    if (err != OMX_ErrorNone)
+    {
+        DBG_E("OMX_EmptyThisBuffer failed. err=0x%08x\n", err);
+        return;
+    }
+    DBG_I("Waiting for end of stream\n");
+    while (!ctx->eos)
+    {
+        usleep(100000);
+    }
+}
+
 static void raspi_uninit(video_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
+
+    wait_complition(ctx);
 
     if (ctx->tunnel_decoder)
     {
@@ -165,6 +251,9 @@ static void raspi_uninit(video_player_h h)
         ilcore_clean_tunnel(ctx->tunnel_clock);
         ilcore_destroy_tunnel(ctx->tunnel_clock);
     }
+
+    raspi_release_buffers(ctx);
+
     if (ctx->scheduler)
         ilcore_uninit_comp(ctx->scheduler);
     if (ctx->render)
@@ -276,8 +365,6 @@ static ret_code_t raspi_init(video_player_h h)
     }
 
     port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
-    //port_param.nBufferCountActual = VIDEO_BUFFERS;
-    //port_param.nBufferSize = (80 * 1024);
 
     devode_get_video_size(ctx->demux, &width, &height);
 
@@ -368,7 +455,7 @@ static ret_code_t raspi_init(video_player_h h)
     err = omx_core_comp_wait_command(ctx->decoder, OMX_CommandPortEnable, IL_VIDEO_DECODER_IN_PORT, 100);
     if (err != OMX_ErrorNone)
     {
-        DBG_E("Wait event failed. err=%d\n");
+        DBG_E("Wait event failed. err=%x\n", err);
         goto Error;
     }
 
@@ -425,6 +512,8 @@ static ret_code_t raspi_init(video_player_h h)
     DBG_I("Video player sucsessfuly initialized !\n");
     decode_start_read(ctx->demux);
     video_player_pause_toggle(ctx->parent);
+
+    ilcore_set_eos_callback(ctx->render, eof_callback, ctx);
 
     return L_OK;
 

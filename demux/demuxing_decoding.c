@@ -666,9 +666,6 @@ media_buffer_t *decode_get_free_audio_buffer(demux_ctx_h h)
         return NULL;
     }
 
-    if (ctx->stop_decode)
-        return NULL;
-
     abuff = (media_buffer_t *)queue_pop(ctx->audio_ctx->free_buff);
 
     return abuff;
@@ -718,9 +715,6 @@ media_buffer_t *decode_get_free_video_buffer(demux_ctx_h h)
         DBG_E("Video context not allocated\n");
         return NULL;
     }
-
-    if (ctx->stop_decode)
-        return NULL;
 
     vbuff = (media_buffer_t *)queue_pop(ctx->video_ctx->free_buff);
 
@@ -887,6 +881,19 @@ static ret_code_t init_audio_buffers(app_audio_ctx_t *ctx)
     }
 
     return rc;
+}
+
+void release_all_buffers(demux_ctx_h h)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+    media_buffer_t *buff;
+    
+    while ((buff = (media_buffer_t *)queue_pop(ctx->audio_ctx->fill_buff)) != NULL)
+        queue_push(ctx->audio_ctx->free_buff, (queue_node_t *)buff);
+#ifdef CONFIG_VIDEO
+    while ((buff = (media_buffer_t *)queue_pop(ctx->video_ctx->fill_buff)) != NULL)
+        queue_push(ctx->video_ctx->free_buff, (queue_node_t *)buff);
+#endif
 }
 
 static void uninit_audio_buffers(app_audio_ctx_t *ctx)

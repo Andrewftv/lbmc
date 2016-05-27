@@ -23,5 +23,6 @@ ilcore_comp_h create_omxaudio_render(int buff_size, int buff_count, int sample_r
 void destroy_omxaudio_render(ilcore_comp_h render);
 
 ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux);
+ret_code_t omxaudio_render_release_buffers(ilcore_comp_h render, demux_ctx_h demuxer);
 
 #endif

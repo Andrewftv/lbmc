@@ -26,6 +26,9 @@ typedef struct {
     OMX_HANDLETYPE handle;
     char *name;
 
+    eos_cb_t eos_cb;
+    void *ctx_cb;
+
     list_h event_list;
     msleep_h event_sleep;
     void *app_data;
@@ -149,7 +152,16 @@ static int search_event_cb(list_node_t *node, void *user_data)
 OMX_ERRORTYPE il_event_handler(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent, 
     OMX_U32 nData1, OMX_U32 nData2, OMX_PTR pEventData)
 {
-    ilcore_add_comp_event(pAppData, eEvent, nData1, nData2);
+    ilcore_comp_ctx_t *ctx = (ilcore_comp_ctx_t *)pAppData;
+
+    ilcore_add_comp_event(ctx, eEvent, nData1, nData2);
+
+    if (eEvent == OMX_EventBufferFlag && (nData2 & OMX_BUFFERFLAG_EOS))
+    {
+        DBG_I("EOS event recieved\n");
+        if (ctx->eos_cb)
+            ctx->eos_cb(ctx->ctx_cb);
+    }
 
     return OMX_ErrorNone;
 }
@@ -566,6 +578,14 @@ ret_code_t ilcore_get_config(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
 	}
 
     return L_OK;
+}
+
+void ilcore_set_eos_callback(ilcore_comp_h h, eos_cb_t cb, void *ctx_cb)
+{
+    ilcore_comp_ctx_t  *ctx = (ilcore_comp_ctx_t *)h;
+
+    ctx->eos_cb = cb;
+    ctx->ctx_cb = ctx_cb;
 }
 
 void ilcore_set_app_data(ilcore_comp_h h, void *app_data)

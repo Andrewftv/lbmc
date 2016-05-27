@@ -66,6 +66,9 @@ typedef struct omx_event {
     OMX_U32 nData2;
 } omx_event_t;
 
+/* End of stream callback */
+typedef void (*eos_cb_t)(void *);
+
 /* Event handle callback */
 OMX_ERRORTYPE il_event_handler(OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent, 
     OMX_U32 nData1, OMX_U32 nData2, OMX_PTR pEventData);
@@ -105,5 +108,6 @@ ret_code_t ilcore_get_config(ilcore_comp_h h, OMX_INDEXTYPE index, OMX_PTR data)
 
 void ilcore_set_app_data(ilcore_comp_h h, void *app_data);
 void *ilcore_get_app_data(ilcore_comp_h h);
+void ilcore_set_eos_callback(ilcore_comp_h h, eos_cb_t cb, void *ctx_cb);
 
 #endif

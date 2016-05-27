@@ -47,11 +47,12 @@ int video_player_pause_toggle(video_player_context *player_ctx)
     return (player_ctx->state == PLAYER_PAUSE);
 }
 
-void video_player_stop(video_player_context *player_ctx)
+void video_player_stop(video_player_context *player_ctx, int stop)
 {
     if (!player_ctx)
         return;
 
+    player_ctx->stop = stop;
     player_ctx->running = 0;
     /* Waiting for player task */
     if (player_ctx->task)

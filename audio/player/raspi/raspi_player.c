@@ -42,6 +42,8 @@ typedef struct {
     int running;
     long volume;
     int mute;
+    int eos;
+    int stop;
 
     demux_ctx_h demuxer;
     ilcore_comp_h render;
@@ -105,6 +107,8 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
 
 static ret_code_t audio_player_uninit(player_ctx_t *ctx)
 {
+    omxaudio_render_release_buffers(ctx->render, ctx->demuxer);
+
     ilcore_flush_tunnel(ctx->clock_tunnel);
     ilcore_clean_tunnel(ctx->clock_tunnel);
     ilcore_destroy_tunnel(ctx->clock_tunnel);
@@ -112,6 +116,48 @@ static ret_code_t audio_player_uninit(player_ctx_t *ctx)
     destroy_omxaudio_render(ctx->render);
 
     return L_OK;
+}
+
+static void eof_callback(void *context)
+{
+    player_ctx_t *ctx = (player_ctx_t *)context;
+
+    ctx->eos = 1;
+}
+
+static void wait_complition(player_ctx_t *ctx)
+{
+    media_buffer_t *buf;
+    OMX_BUFFERHEADERTYPE *hdr;
+    OMX_ERRORTYPE err;
+
+    if (ctx->stop)
+        return; /* Force stop player by user */
+
+    buf = decode_get_free_audio_buffer(ctx->demuxer);
+    if (!buf)
+    {
+        DBG_E("Unable to get free audio buffer\n");
+        return;
+    }
+    hdr = (OMX_BUFFERHEADERTYPE *)buf->app_data;
+    hdr->pAppPrivate = buf;
+    hdr->nOffset = 0;
+    hdr->nFilledLen = 0;
+    hdr->nTimeStamp = to_omx_time(0);
+    hdr->nFlags = OMX_BUFFERFLAG_ENDOFFRAME | OMX_BUFFERFLAG_EOS | OMX_BUFFERFLAG_TIME_UNKNOWN;
+
+    err = OMX_EmptyThisBuffer(ilcore_get_handle(ctx->render), hdr);
+    if (err != OMX_ErrorNone)
+    {
+        DBG_E("OMX_EmptyThisBuffer failed. err=0x%08x\n", err);
+        return;
+    }
+    DBG_I("Waiting for end of stream\n");
+    while (!ctx->eos)
+    {
+        usleep(100000);
+    }
 }
 
 static void *player_routine(void *args)
@@ -128,6 +174,8 @@ static void *player_routine(void *args)
 
     if (audio_player_init(ctx) < 0)
         return NULL;
+
+    ilcore_set_eos_callback(ctx->render, eof_callback, ctx);
 
     OMX_INIT_STRUCT(ar_dest);
     strcpy((char *)ar_dest.sName, "local");
@@ -199,12 +247,13 @@ static void *player_routine(void *args)
         {
             DBG_E("OMX_EmptyThisBuffer failed. err=0x%08x\n", err);
             break;
-        
         }
     }
 
-    ctx->running = 0;
+    wait_complition(ctx);
+
     audio_player_uninit(ctx);
+    ctx->running = 0;
 
     DBG_I("Audio player task finished\n");
 
@@ -244,7 +293,7 @@ demux_ctx_h audio_player_get_demuxer(audio_player_h h)
     return ctx->demuxer;
 }
 
-void audio_player_stop(audio_player_h h)
+void audio_player_stop(audio_player_h h, int stop)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
@@ -252,6 +301,7 @@ void audio_player_stop(audio_player_h h)
         return;
 
     ctx->running = 0;
+    ctx->stop = stop;
     /* Waiting for player task */
     pthread_join(ctx->task, NULL);
     

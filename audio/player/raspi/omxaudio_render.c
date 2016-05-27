@@ -159,3 +159,34 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
 
     return L_OK;
 }
+
+ret_code_t omxaudio_render_release_buffers(ilcore_comp_h render, demux_ctx_h demuxer)
+{
+    media_buffer_t *buf[AUDIO_BUFFERS];
+    int i;
+
+    ilcore_disable_port(render, IL_AUDIO_RENDER_IN_PORT, 0);
+
+    for (i = 0; i < AUDIO_BUFFERS; i++)
+    {
+        OMX_BUFFERHEADERTYPE *hdr;
+
+        buf[i] = decode_get_free_audio_buffer(demuxer);
+        if (!buf[i])
+        {
+            DBG_E("Can not get demuxer buffer #%d\n", i);
+            continue;
+        }
+        hdr = buf[i]->app_data;
+        OMX_FreeBuffer(ilcore_get_handle(render), IL_AUDIO_RENDER_IN_PORT, hdr);
+    }
+
+    omx_core_comp_wait_command(render, OMX_CommandPortDisable, IL_AUDIO_RENDER_IN_PORT, 2000);
+
+    for (i = 0; i < AUDIO_BUFFERS; i++)
+        if (buf[i])
+            decode_release_audio_buffer(demuxer, buf[i]);
+
+    return L_OK;
+}
+
