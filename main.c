@@ -29,13 +29,13 @@
 #include "ilcore.h"
 #include "omxclock.h"
 #include "guiapi.h"
+#include "hw_img_decode.h"
 #endif
 
 #include "log.h"
 #include "decode.h"
 #include "audio_player.h"
 #include "video_player.h"
-#include "hw_img_decode.h"
 
 struct termios orig_termios;
 
@@ -98,6 +98,8 @@ int main(int argc, char **argv)
     char *src_filename = NULL;
     audio_player_h aplayer_ctx = NULL;
     int stop = 0;
+    int is_muted = 0;
+    int is_pause = 0;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
     ilcore_comp_h clock = NULL;
@@ -105,7 +107,6 @@ int main(int argc, char **argv)
     win_h hwin = NULL;
     win_h status_window = NULL;
     int show_info = 0;
-    int is_muted = 0, is_pause = 0;
 #else
     void *clock = NULL;
 #endif
@@ -189,7 +190,7 @@ int main(int argc, char **argv)
 #endif
                 if (decode_is_audio(demux_ctx))
                     is_pause = audio_player_pause_toggle(aplayer_ctx);
-
+#ifdef CONFIG_RASPBERRY_PI
                 if (is_pause)
                 {
                     image_h h_img;
@@ -226,6 +227,7 @@ int main(int argc, char **argv)
                         }
                     }
                 }
+#endif
                 break;
             case 'a':
                 decode_next_audio_stream(demux_ctx);
@@ -236,7 +238,7 @@ int main(int argc, char **argv)
 
                 if (audio_player_mute_toggle(aplayer_ctx, &is_muted) != L_OK)
                     break;
-
+#ifdef CONFIG_RASPBERRY_PI
                 if (is_muted)
                 {
                     image_h h_img;
@@ -259,7 +261,9 @@ int main(int argc, char **argv)
                         status_window = NULL;
                     }
                 }
+#endif
                 break;
+#ifdef CONFIG_RASPBERRY_PI
             case 'i':
                 {
                     show_info = !show_info;
@@ -282,6 +286,7 @@ int main(int argc, char **argv)
                     }
                 }
                 break;
+#endif
             }
         }
         else
