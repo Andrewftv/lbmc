@@ -533,7 +533,6 @@ static ret_code_t raspi_draw_frame(video_player_h h, media_buffer_t *buff)
     OMX_PARAM_PORTDEFINITIONTYPE port_param;
     OMX_BUFFERHEADERTYPE *hdr;
     OMX_ERRORTYPE err;
-    int sent_data = 0;
     int no_ts = 0;
 
     hdr = (OMX_BUFFERHEADERTYPE *)buff->app_data;
@@ -569,12 +568,6 @@ static ret_code_t raspi_draw_frame(video_player_h h, media_buffer_t *buff)
     hdr->nFilledLen = (hdr->nAllocLen >= buff->size) ? buff->size : hdr->nAllocLen;
     hdr->pAppPrivate = buff;
 
-    if (sent_data)
-    {
-        DBG_I("Send second part\n");
-        memcpy(buff->s.video.data, &buff->s.video.data[sent_data], hdr->nFilledLen);
-    }
-    sent_data += hdr->nFilledLen;
     buff->size -= hdr->nFilledLen;
 
     if (!buff->size && buff->status == MB_FULL_STATUS)
