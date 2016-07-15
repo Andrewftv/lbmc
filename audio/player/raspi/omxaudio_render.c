@@ -30,62 +30,6 @@
 #include "ilcore.h"
 #include "omxaudio_render.h"
 
-ilcore_comp_h create_omxaudio_render(int buff_size, int buff_count, int sample_rate, int channels)
-{
-    OMX_ERRORTYPE err;
-    OMX_CALLBACKTYPE cb;
-    OMX_AUDIO_PARAM_PCMMODETYPE pcm;
-    ilcore_comp_h render;
-
-    cb.EventHandler = il_event_handler;
-    cb.EmptyBufferDone = audio_play_buffer_done;
-    cb.FillBufferDone = il_fill_buffer_done;
-
-    if (ilcore_init_comp(&render, &cb, "OMX.broadcom.audio_render"))
-        return NULL;
-
-    if (ilcore_disable_all_ports(render))
-        goto Error;
-
-    if (ilcore_set_port_buffers_param(render, buff_size, buff_count))
-        goto Error;
-
-    memset(&pcm, 0, sizeof(OMX_AUDIO_PARAM_PCMMODETYPE));
-    pcm.nSize = sizeof(OMX_AUDIO_PARAM_PCMMODETYPE);
-    pcm.nVersion.nVersion = OMX_VERSION;
-    pcm.nPortIndex = IL_AUDIO_RENDER_IN_PORT;
-    pcm.nChannels = channels;
-    pcm.eNumData = OMX_NumericalDataSigned;
-    pcm.eEndian = OMX_EndianLittle;
-    pcm.nSamplingRate = sample_rate;
-    pcm.bInterleaved = OMX_TRUE;
-    pcm.nBitPerSample = 16;
-    pcm.ePCMMode = OMX_AUDIO_PCMModeLinear;
-
-    pcm.eChannelMapping[1] = OMX_AUDIO_ChannelRF;
-    pcm.eChannelMapping[0] = OMX_AUDIO_ChannelLF;
-
-    err = OMX_SetParameter(ilcore_get_handle(render), OMX_IndexParamAudioPcm, &pcm);
-    if (err != OMX_ErrorNone)
-    {
-        DBG_E("OMX_IndexParamAudioPcm failed. err=%d\n");
-        goto Error;
-    }
-
-    return render;
-
-Error:
-    destroy_omxaudio_render(render);
-
-    return NULL;
-}
-
-void destroy_omxaudio_render(ilcore_comp_h render)
-{
-    if (render)
-        ilcore_uninit_comp(render);
-}
-
 ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demuxer)
 {
     OMX_ERRORTYPE err;
@@ -163,11 +107,13 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
 ret_code_t omxaudio_render_release_buffers(ilcore_comp_h render, demux_ctx_h demuxer)
 {
     media_buffer_t *buf[AUDIO_BUFFERS];
-    int i;
+    int i, size, count;
+
+    decode_get_audio_buffs_info(demuxer, &size, &count);
 
     ilcore_disable_port(render, IL_AUDIO_RENDER_IN_PORT, 0);
 
-    for (i = 0; i < AUDIO_BUFFERS; i++)
+    for (i = 0; i < count; i++)
     {
         OMX_BUFFERHEADERTYPE *hdr;
 
@@ -183,7 +129,7 @@ ret_code_t omxaudio_render_release_buffers(ilcore_comp_h render, demux_ctx_h dem
 
     omx_core_comp_wait_command(render, OMX_CommandPortDisable, IL_AUDIO_RENDER_IN_PORT, 2000);
 
-    for (i = 0; i < AUDIO_BUFFERS; i++)
+    for (i = 0; i < count; i++)
         if (buf[i])
             decode_release_audio_buffer(demuxer, buf[i]);
 

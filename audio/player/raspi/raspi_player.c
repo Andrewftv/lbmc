@@ -63,7 +63,21 @@ OMX_ERRORTYPE audio_play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData
 
 static ret_code_t audio_player_init(player_ctx_t *ctx)
 {
+    OMX_ERRORTYPE err;
+    OMX_CALLBACKTYPE cb;
+    OMX_AUDIO_PARAM_PCMMODETYPE pcm;
     int buff_size, buff_count;
+    int size, count, align;
+
+    cb.EventHandler = il_event_handler;
+    cb.EmptyBufferDone = audio_play_buffer_done;
+    cb.FillBufferDone = il_fill_buffer_done;
+
+    if (ilcore_init_comp(&ctx->render, &cb, "OMX.broadcom.audio_render"))
+        return L_FAILED;
+
+    if (ilcore_disable_all_ports(ctx->render))
+        return L_FAILED;
 
     if (decode_get_audio_buffs_info(ctx->demuxer, &buff_size, &buff_count))
     {
@@ -72,12 +86,36 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
     }
     DBG_I("Buffers count: %d buffers size: %d\n", buff_count, buff_size);
 
-    ctx->render = create_omxaudio_render(buff_size, buff_count, decode_get_sample_rate(ctx->demuxer),
-        decode_get_channels(ctx->demuxer));
-    if (!ctx->render)
+    memset(&pcm, 0, sizeof(OMX_AUDIO_PARAM_PCMMODETYPE));
+    pcm.nSize = sizeof(OMX_AUDIO_PARAM_PCMMODETYPE);
+    pcm.nVersion.nVersion = OMX_VERSION;
+    pcm.nPortIndex = IL_AUDIO_RENDER_IN_PORT;
+    pcm.nChannels = decode_get_channels(ctx->demuxer);
+    pcm.eNumData = OMX_NumericalDataSigned;
+    pcm.eEndian = OMX_EndianLittle;
+    pcm.nSamplingRate = decode_get_sample_rate(ctx->demuxer);
+    pcm.bInterleaved = OMX_TRUE;
+    pcm.nBitPerSample = 16;
+    pcm.ePCMMode = OMX_AUDIO_PCMModeLinear;
+
+    pcm.eChannelMapping[1] = OMX_AUDIO_ChannelRF;
+    pcm.eChannelMapping[0] = OMX_AUDIO_ChannelLF;
+
+    err = OMX_SetParameter(ilcore_get_handle(ctx->render), OMX_IndexParamAudioPcm, &pcm);
+    if (err != OMX_ErrorNone)
+    {
+        DBG_E("OMX_IndexParamAudioPcm failed. err=%d\n");
+        return L_FAILED;
+    }
+    ilcore_set_app_data(ctx->render, ctx);
+
+    if (ilcore_get_port_buffers_param(ctx->render, &size, &count, &align))
         return L_FAILED;
 
-    ilcore_set_app_data(ctx->render, ctx);
+    DBG_I("Audio player request %d buffers, size=%d align=%d\n", count, size, align);
+
+    if (ilcore_set_port_buffers_param(ctx->render, buff_size, buff_count, 16))
+        return L_FAILED;
 
     if (ilcore_set_state(ctx->render, OMX_StateIdle) != L_OK)
         return L_FAILED;
@@ -107,13 +145,15 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
 
 static ret_code_t audio_player_uninit(player_ctx_t *ctx)
 {
-    omxaudio_render_release_buffers(ctx->render, ctx->demuxer);
+    if (ctx->render)
+        omxaudio_render_release_buffers(ctx->render, ctx->demuxer);
 
     ilcore_flush_tunnel(ctx->clock_tunnel);
     ilcore_clean_tunnel(ctx->clock_tunnel);
     ilcore_destroy_tunnel(ctx->clock_tunnel);
 
-    destroy_omxaudio_render(ctx->render);
+    if (ctx->render)
+        ilcore_uninit_comp(ctx->render);
 
     return L_OK;
 }

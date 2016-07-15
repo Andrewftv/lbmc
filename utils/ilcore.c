@@ -380,13 +380,13 @@ ret_code_t ilcore_set_state(ilcore_comp_h h, OMX_STATETYPE state)
     err = OMX_SendCommand(ctx->handle, OMX_CommandStateSet, state, NULL);
     if (err != OMX_ErrorNone)
     {
-        DBG_E("Change state to idle failed. err=%d\n");
+        DBG_E("Change state to idle failed. err=0x%x\n", err);
         return L_FAILED;
     }
     err = omx_core_comp_wait_command(ctx, OMX_CommandStateSet, state, IL_WAIT_TIMEOUT);
     if (err != OMX_ErrorNone)
     {
-        DBG_E("Wait event failed. err=%d\n");
+        DBG_E("Wait event failed. err=0x%x\n", err);
         return L_FAILED;
     }
 
@@ -408,7 +408,7 @@ ret_code_t ilcore_get_state(ilcore_comp_h h, OMX_STATETYPE *state)
     return L_OK;
 }
 
-ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count)
+ret_code_t ilcore_get_port_buffers_param(ilcore_comp_h h, int *size, int *count, int *align)
 {
     OMX_ERRORTYPE err;
     OMX_PARAM_PORTDEFINITIONTYPE param;
@@ -420,16 +420,39 @@ ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count)
     err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
     if (err != OMX_ErrorNone)
     {
-        DBG_E("OMX_IndexParamPortDefinition failed. err=%d\n");
+        DBG_E("OMX_IndexParamPortDefinition failed. err=0x%x\n", err);
+        return L_FAILED;
+    }
+    *size = param.nBufferSize;
+    *count = param.nBufferCountActual;
+    *align = param.nBufferAlignment;
+
+    return L_OK;
+}
+
+ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count, int align)
+{
+    OMX_ERRORTYPE err;
+    OMX_PARAM_PORTDEFINITIONTYPE param;
+    ilcore_comp_ctx_t *ctx = (ilcore_comp_ctx_t *)h;
+
+    OMX_INIT_STRUCT(param);
+    param.nPortIndex = IL_AUDIO_RENDER_IN_PORT;
+ 
+    err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
+    if (err != OMX_ErrorNone)
+    {
+        DBG_E("OMX_IndexParamPortDefinition failed. err=0x%x\n", err);
         return L_FAILED;
     }
     param.nBufferSize = size;
     param.nBufferCountActual = count;
+    param.nBufferAlignment = align;
 
     err = OMX_SetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
     if (err != OMX_ErrorNone)
     {
-        DBG_E("OMX_IndexParamPortDefinition failed. err=%d\n");
+        DBG_E("OMX_IndexParamPortDefinition failed. err=0x%x\n", err);
         return L_FAILED;
     }
     return L_OK;
