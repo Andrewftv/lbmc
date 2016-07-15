@@ -1,9 +1,12 @@
 TOP_DIR=../..
 include $(TOP_DIR)/envir.mak
 
-SRC:=ft_text.c video_player.c
+SRC:=video_player.c
 ifdef CONFIG_RASPBERRY_PI
 SRC+=hdmi.c
+endif
+ifdef CONFIG_GL_TEXT_RENDERER
+SRC+=ft_text
 endif
 
 LIBA=libcommon_video.a
