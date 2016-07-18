@@ -1007,7 +1007,6 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
     unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
 
     if(pkt->pts != AV_NOPTS_VALUE)
-        //buff->pts_ms = ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame));
         buff->pts_ms = ts2ms(&ctx->st->time_base, pkt->pts);
     else
         buff->pts_ms = AV_NOPTS_VALUE;
@@ -1025,14 +1024,14 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
         frame->nb_samples);
     if (ret < 0) 
     {
-           DBG_E("Error while converting\n");
+        DBG_E("Error while converting\n");
         return -1;
     }
     unpadded_linesize = av_samples_get_buffer_size(&dst_linesize, 2, ret, dst_fmt, 1);
     if (unpadded_linesize < 0)
     {
-           DBG_E("Could not get sample buffer size\n");
-           return -1;
+        DBG_E("Could not get sample buffer size\n");
+        return -1;
     }
     buff->size = (size_t)unpadded_linesize;
 
@@ -1360,11 +1359,39 @@ static ret_code_t resampling_config(app_audio_ctx_t *ctx, int reinit)
     return ret;
 }
 
+static void print_stream_info(demux_ctx_t *ctx, AVPacket *pkt)
+{
+    int64_t pts_ms = 0;
+
+    if (ctx->video_ctx && pkt->stream_index == ctx->video_ctx->stream_idx)
+        pts_ms = ts2ms(&ctx->video_ctx->st->time_base, pkt->pts);
+    else if (ctx->audio_ctx && pkt->stream_index == ctx->audio_ctx->stream_idx)
+        pts_ms = ts2ms(&ctx->audio_ctx->st->time_base, pkt->pts);
+
+    if (ctx->video_ctx && ctx->audio_ctx)
+    {
+        printf("===> V:%02d:%02d  A:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
+            ctx->video_ctx->buff_allocated, queue_count(ctx->audio_ctx->fill_buff),
+            ctx->audio_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms);
+    }
+    else if (ctx->video_ctx)
+    {
+        printf("===> V:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
+            ctx->video_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms);
+    }
+    else if (ctx->audio_ctx)
+    {
+        printf("===> A:%02d:%02d TS:%lld\r", queue_count(ctx->audio_ctx->fill_buff),
+            ctx->audio_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms);
+    }
+}
+
 static void *read_demux_data(void *args)
 {
     AVPacket pkt;
     int ret;
     int got_frame;
+    int info_count = 0;
     AVFrame *frame = NULL;
     demux_ctx_t *ctx = (demux_ctx_t *)args;
 
@@ -1400,9 +1427,13 @@ static void *read_demux_data(void *args)
             pkt.size -= ret;
         }
         while (pkt.size > 0);
-        av_free_packet(&orig_pkt);
 
         decode_unlock(ctx);
+
+        if (!(info_count % 10))
+            print_stream_info(ctx, &orig_pkt);
+
+        av_free_packet(&orig_pkt);
     }
 
     /* flush cached frames */
