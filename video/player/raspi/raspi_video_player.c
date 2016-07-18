@@ -363,7 +363,11 @@ static ret_code_t raspi_init(video_player_h h)
         DBG_E("Unable to allocate video buffers\n");
         goto Error;
     }
-
+    if (decode_get_video_buffs_info(ctx->demux, (int *)&port_param.nBufferSize, (int *)&port_param.nBufferCountActual,
+        (int *)&port_param.nBufferAlignment))
+    {
+        goto Error;
+    }
     port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
 
     devode_get_video_size(ctx->demux, &width, &height);
@@ -538,7 +542,9 @@ static ret_code_t raspi_draw_frame(video_player_h h, media_buffer_t *buff)
     hdr = (OMX_BUFFERHEADERTYPE *)buff->app_data;
     hdr->nFlags = 0;
     hdr->nOffset = 0;
-        
+
+    decode_set_current_playing_pts(ctx->demux, buff->pts_ms);
+
     if (buff->pts_ms == AV_NOPTS_VALUE && buff->dts_ms == AV_NOPTS_VALUE)
     {
         hdr->nTimeStamp = to_omx_time(0);

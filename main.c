@@ -150,7 +150,7 @@ int main(int argc, char **argv)
     gui_h hgui = NULL;
     win_h hwin = NULL;
     win_h status_window = NULL;
-    int show_info = 0;
+    int show_pic = 0;
 #else
     void *clock = NULL;
 #endif
@@ -298,8 +298,8 @@ int main(int argc, char **argv)
 #ifdef CONFIG_RASPBERRY_PI
             case 'i':
                 {
-                    show_info = !show_info;
-                    if (show_info)
+                    show_pic = !show_pic;
+                    if (show_pic)
                     {
                         image_h h_img;
 

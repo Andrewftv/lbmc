@@ -54,6 +54,7 @@ typedef struct {
     queue_h fill_buff;
 
     int buff_allocated;
+    int buff_align;
     int buff_size;
     int frame_count;
     int stream_idx;
@@ -89,6 +90,8 @@ typedef struct {
     queue_h fill_buff;
 
     int buff_allocated;
+    int buff_align;
+    int buff_size;
     int subtitle_stream_idx;
     int stream_idx;
     int frame_count;
@@ -362,6 +365,8 @@ ret_code_t decode_setup_video_buffers(demux_ctx_h h, int amount, int align, int 
     }
 #endif
     vctx->buff_allocated = amount;
+    vctx->buff_align = align;
+    vctx->buff_size = len;
     return L_OK;
 }
 #endif
@@ -495,7 +500,6 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
         msleep_init(&actx->empty_buff);
         msleep_init(&actx->full_buff);
 
-        decode_setup_audio_buffers(ctx, AUDIO_BUFFERS, 16, 16 * 1024);
         if (resampling_config(actx, 0))
             return L_FAILED;
 
@@ -663,7 +667,7 @@ int decode_get_channels(demux_ctx_h h)
     return 2;
 }
 
-ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)
+ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count, int *align)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
 
@@ -672,6 +676,7 @@ ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *count)
 
     *size = ctx->audio_ctx->buff_size;
     *count = ctx->audio_ctx->buff_allocated;
+    *align = ctx->audio_ctx->buff_align;
 
     return L_OK;
 }
@@ -904,6 +909,7 @@ ret_code_t decode_setup_audio_buffers(demux_ctx_h h, int amount, int align, int 
     }
 
     ctx->audio_ctx->buff_allocated = amount;
+    ctx->audio_ctx->buff_align = align;
 
     return rc;
 }
@@ -1061,6 +1067,20 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
 }
 
 #ifdef CONFIG_VIDEO
+ret_code_t decode_get_video_buffs_info(demux_ctx_h h, int *size, int *count, int *align)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx->video_ctx)
+        return L_FAILED;
+
+    *size = ctx->video_ctx->buff_size;
+    *count = ctx->video_ctx->buff_allocated;
+    *align = ctx->video_ctx->buff_align;
+
+    return L_OK;
+}
+
 ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;

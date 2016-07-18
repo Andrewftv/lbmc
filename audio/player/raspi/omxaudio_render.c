@@ -107,9 +107,9 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
 ret_code_t omxaudio_render_release_buffers(ilcore_comp_h render, demux_ctx_h demuxer)
 {
     media_buffer_t *buf[AUDIO_BUFFERS];
-    int i, size, count;
+    int i, size, count, align;
 
-    decode_get_audio_buffs_info(demuxer, &size, &count);
+    decode_get_audio_buffs_info(demuxer, &size, &count, &align);
 
     ilcore_disable_port(render, IL_AUDIO_RENDER_IN_PORT, 0);
 

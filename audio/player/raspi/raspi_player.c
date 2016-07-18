@@ -66,8 +66,7 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
     OMX_ERRORTYPE err;
     OMX_CALLBACKTYPE cb;
     OMX_AUDIO_PARAM_PCMMODETYPE pcm;
-    int buff_size, buff_count;
-    int size, count, align;
+    int buff_size, buff_count, buff_align;
 
     cb.EventHandler = il_event_handler;
     cb.EmptyBufferDone = audio_play_buffer_done;
@@ -79,12 +78,15 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
     if (ilcore_disable_all_ports(ctx->render))
         return L_FAILED;
 
-    if (decode_get_audio_buffs_info(ctx->demuxer, &buff_size, &buff_count))
+    if (decode_setup_audio_buffers(ctx->demuxer, AUDIO_BUFFERS, AUDIO_BUFF_ALIGN, AUDIO_BUFF_SIZE))
+        return L_FAILED;
+
+    if (decode_get_audio_buffs_info(ctx->demuxer, &buff_size, &buff_count, &buff_align))
     {
         DBG_E("Can not get audio buffers info\n");
         return L_FAILED;
     }
-    DBG_I("Buffers count: %d buffers size: %d\n", buff_count, buff_size);
+    DBG_I("Buffers count: %d buffers size: %d alignment: %d\n", buff_count, buff_size, buff_align);
 
     memset(&pcm, 0, sizeof(OMX_AUDIO_PARAM_PCMMODETYPE));
     pcm.nSize = sizeof(OMX_AUDIO_PARAM_PCMMODETYPE);
@@ -109,12 +111,7 @@ static ret_code_t audio_player_init(player_ctx_t *ctx)
     }
     ilcore_set_app_data(ctx->render, ctx);
 
-    if (ilcore_get_port_buffers_param(ctx->render, &size, &count, &align))
-        return L_FAILED;
-
-    DBG_I("Audio player request %d buffers, size=%d align=%d\n", count, size, align);
-
-    if (ilcore_set_port_buffers_param(ctx->render, buff_size, buff_count, 16))
+    if (ilcore_set_port_buffers_param(ctx->render, buff_size, buff_count, buff_align))
         return L_FAILED;
 
     if (ilcore_set_state(ctx->render, OMX_StateIdle) != L_OK)
@@ -253,6 +250,8 @@ static void *player_routine(void *args)
             usleep(10000);
             continue;
         }
+
+        decode_set_current_playing_pts(ctx->demuxer, buf->pts_ms);
 
         hdr = (OMX_BUFFERHEADERTYPE *)buf->app_data;
         hdr->nFlags = 0;

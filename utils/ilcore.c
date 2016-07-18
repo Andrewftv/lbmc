@@ -442,7 +442,7 @@ ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count, i
     err = OMX_GetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
     if (err != OMX_ErrorNone)
     {
-        DBG_E("OMX_IndexParamPortDefinition failed. err=0x%x\n", err);
+        DBG_E("%s: OMX_IndexParamPortDefinition failed. err=0x%x\n", ctx->name, err);
         return L_FAILED;
     }
     param.nBufferSize = size;
@@ -452,7 +452,7 @@ ret_code_t ilcore_set_port_buffers_param(ilcore_comp_h h, int size, int count, i
     err = OMX_SetParameter(ctx->handle, OMX_IndexParamPortDefinition, &param);
     if (err != OMX_ErrorNone)
     {
-        DBG_E("OMX_IndexParamPortDefinition failed. err=0x%x\n", err);
+        DBG_E("%s: OMX_IndexParamPortDefinition failed. err=0x%x\n", ctx->name, err);
         return L_FAILED;
     }
     return L_OK;

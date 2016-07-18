@@ -19,8 +19,12 @@
 #ifndef __LBMC_DECODE_H__
 #define __LBMC_DECODE_H__
 
-#define AUDIO_BUFFERS 64
-#define VIDEO_BUFFERS 20
+/* Default audio buffers settings */
+#define AUDIO_BUFFERS       64
+#define AUDIO_BUFF_SIZE     (16 * 1024)
+#define AUDIO_BUFF_ALIGN    16
+/* Default video buffer settings */
+#define VIDEO_BUFFERS       20
 
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixfmt.h>
@@ -99,13 +103,14 @@ ret_code_t decode_get_codec_id(demux_ctx_h h, enum AVCodecID *codec_id);
 ret_code_t decode_get_frame_rate(demux_ctx_h h, int *rate, int *scale);  
 uint8_t *decode_get_codec_extra_data(demux_ctx_h h, int *size);
 ret_code_t decode_setup_video_buffers(demux_ctx_h h, int amount, int align, int len);
+ret_code_t decode_get_video_buffs_info(demux_ctx_h h, int *size, int *cont, int *align);
 #endif
 
 /* Output audio format. Used for a player configuration */
 enum AVSampleFormat decode_get_sample_format(demux_ctx_h h);
 int decode_get_sample_rate(demux_ctx_h h);
 int decode_get_channels(demux_ctx_h h);
-ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *cont);
+ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *cont, int *align);
 
 void decode_set_current_playing_pts(demux_ctx_h h, int64_t pts);
 
