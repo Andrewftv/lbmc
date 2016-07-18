@@ -103,11 +103,10 @@ static void *player_routine(void *args)
     fmt = decode_get_sample_format(ctx->audio_ctx);
     ss.format = av2pa(fmt);
 
-    DBG_I("Open pulse audio. format: %s rate: %d channels: %d\n",
-        pa_sample_format_to_string(ss.format), ss.rate, ss.channels);
+    DBG_I("Open pulse audio. format: %s rate: %d channels: %d\n", pa_sample_format_to_string(ss.format), ss.rate,
+        ss.channels);
 
-    if (!(s = pa_simple_new(NULL, "LBMC", PA_STREAM_PLAYBACK, NULL, "playback",
-        &ss, NULL, NULL, &error)))
+    if (!(s = pa_simple_new(NULL, "LBMC", PA_STREAM_PLAYBACK, NULL, "playback", &ss, NULL, NULL, &error)))
     {
         DBG_E("pa_simple_new() failed: %s\n", pa_strerror(error));
         goto finish;
@@ -138,6 +137,8 @@ static void *player_routine(void *args)
             usleep(10000);
             continue;
         }
+
+        decode_set_current_playing_pts(ctx->audio_ctx, buf->pts_ms);
 
         if (first_pkt)
         {

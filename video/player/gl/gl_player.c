@@ -438,6 +438,8 @@ static ret_code_t gl_draw_frame(video_player_h h, media_buffer_t *buff)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
+    decode_set_current_playing_pts(ctx->demux, buff->pts_ms);
+
     gl_set_viewport(ctx);
       
     glActiveTexture(GL_TEXTURE0);

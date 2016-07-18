@@ -108,6 +108,8 @@ typedef struct {
 
     pthread_t task;
     int stop_decode;
+    /* Current playing PTS in ms */
+    int64_t curr_pts; 
 } demux_ctx_t;
 
 /* Prototypes */
@@ -223,6 +225,19 @@ static ret_code_t reopen_audio_stream(demux_ctx_t *ctx, int cur_inx, int new_inx
     }
 
     return L_OK;
+}
+
+void decode_set_current_playing_pts(demux_ctx_h h, int64_t pts)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Incorrect context\n");
+        return;
+    }
+
+    ctx->curr_pts = pts;
 }
 
 ret_code_t decode_next_audio_stream(demux_ctx_h h)
@@ -1372,14 +1387,14 @@ static void print_stream_info(demux_ctx_t *ctx, AVPacket *pkt)
 
     if (ctx->video_ctx && ctx->audio_ctx)
     {
-        printf("===> V:%02d:%02d  A:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
+        printf("===> V:%02d:%02d  A:%02d:%02d TS:%lld/%lld\r", queue_count(ctx->video_ctx->fill_buff),
             ctx->video_ctx->buff_allocated, queue_count(ctx->audio_ctx->fill_buff),
-            ctx->audio_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms);
+            ctx->audio_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
     }
     else if (ctx->video_ctx)
     {
-        printf("===> V:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
-            ctx->video_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms);
+        printf("===> V:%02d:%02d TS:%lld/%lld\r", queue_count(ctx->video_ctx->fill_buff),
+            ctx->video_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
     }
     else if (ctx->audio_ctx)
     {

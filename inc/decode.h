@@ -107,6 +107,8 @@ int decode_get_sample_rate(demux_ctx_h h);
 int decode_get_channels(demux_ctx_h h);
 ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *cont);
 
+void decode_set_current_playing_pts(demux_ctx_h h, int64_t pts);
+
 /* Demux/decode task */
 ret_code_t decode_start(demux_ctx_h h);
 int decode_is_task_running(demux_ctx_h h);
