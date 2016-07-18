@@ -109,7 +109,8 @@ typedef struct {
     pthread_t task;
     int stop_decode;
     /* Current playing PTS in ms */
-    int64_t curr_pts; 
+    int64_t curr_pts;
+    int show_info;
 } demux_ctx_t;
 
 /* Prototypes */
@@ -365,7 +366,7 @@ ret_code_t decode_setup_video_buffers(demux_ctx_h h, int amount, int align, int 
 }
 #endif
 
-ret_code_t decode_init(demux_ctx_h *h, char *src_file)
+ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
 {
     demux_ctx_t *ctx;
     int streams = 0;
@@ -381,6 +382,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file)
         return L_FAILED;
     }
     memset(ctx, 0, sizeof(demux_ctx_t));
+    ctx->show_info = show_info;
     msleep_init(&ctx->pause);
     pthread_mutex_init(&ctx->lock, NULL);
     /* open input file, and allocate format context */
@@ -1447,7 +1449,7 @@ static void *read_demux_data(void *args)
 
         decode_unlock(ctx);
 
-        if (!(info_count % 10))
+        if (ctx->show_info && !(info_count % 10))
             print_stream_info(ctx, &orig_pkt);
 
         av_free_packet(&orig_pkt);

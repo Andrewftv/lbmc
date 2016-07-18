@@ -74,7 +74,7 @@ typedef struct {
     void *app_data;
 } media_buffer_t;
 
-ret_code_t decode_init(demux_ctx_h *h, char *src_file);
+ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info);
 void decode_uninit(demux_ctx_h h);
 void decode_start_read(demux_ctx_h h);
 

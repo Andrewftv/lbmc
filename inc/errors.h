@@ -26,7 +26,8 @@ typedef enum {
     L_STOPPING = 2,
     /* Errors */
     L_FAILED = -1,
-    L_MEMORY = -2
+    L_MEMORY = -2,
+    L_NOT_FOUND = -3
 } ret_code_t;
 
 #endif

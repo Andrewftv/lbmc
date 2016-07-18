@@ -37,6 +37,9 @@
 #include "audio_player.h"
 #include "video_player.h"
 
+#define CMDOPT_SHOW_INFO    "--show-info"
+#define CMDOPT_HELP         "--help"
+
 struct termios orig_termios;
 
 static void hide_console_cursore(void)
@@ -49,13 +52,13 @@ static void show_console_cursore(void)
     printf("\e[?25h");
 }
 
-void reset_terminal_mode()
+static void reset_terminal_mode()
 {
     DBG_I("Restore original terminal settings\n");
     tcsetattr(0, TCSANOW, &orig_termios);
 }
 
-void set_conio_terminal_mode()
+static void set_conio_terminal_mode()
 {
     struct termios new_termios;
 
@@ -71,7 +74,7 @@ void set_conio_terminal_mode()
     tcsetattr(0, TCSANOW, &new_termios);
 }
 
-int kbhit()
+static int kbhit()
 {
     struct timeval tv = { 0L, 0L };
     fd_set fds;
@@ -81,7 +84,7 @@ int kbhit()
     return select(1, &fds, NULL, NULL, &tv);
 }
 
-int getch()
+static int getch()
 {
     int rc;
     uint8_t ch;
@@ -92,6 +95,46 @@ int getch()
         return ch;
 }
 
+static void show_usage(void)
+{
+    printf("Usage: lbmc <options> input_file\n");
+    printf("Options:\n");
+    printf("\t"CMDOPT_SHOW_INFO" - print buffers state and current PTS\n");
+    printf("\t"CMDOPT_HELP"      - print this text\n");
+}
+
+static ret_code_t parse_command_line(int argc, char **argv, char **file, int *show_info)
+{
+    int i;
+
+    if (argc < 2 || !strcmp(argv[1], CMDOPT_HELP))
+    {
+        show_usage();
+        return L_FAILED;
+    }
+    if (access(argv[argc - 1], F_OK | R_OK))
+    {
+        DBG_E("File %s not found\n", argv[argc - 1]);
+        return L_NOT_FOUND;
+    }
+    *file = argv[argc - 1];
+
+    if (argc == 2)
+        return L_OK;    
+
+    for (i = 1; i < argc - 1; i++)
+    {
+        if (!strcmp(argv[i], CMDOPT_SHOW_INFO))
+            *show_info = 1;
+        else if (!strcmp(argv[1], CMDOPT_HELP))
+            continue; /* Ignore it */
+        else
+            printf("Unknown option: %s\n", argv[i]);
+    }
+    
+    return L_OK;
+}
+
 int main(int argc, char **argv)
 {
     demux_ctx_h demux_ctx = NULL;
@@ -100,6 +143,7 @@ int main(int argc, char **argv)
     int stop = 0;
     int is_muted = 0;
     int is_pause = 0;
+    int show_info = 0;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
     ilcore_comp_h clock = NULL;
@@ -115,23 +159,11 @@ int main(int argc, char **argv)
 #endif
 
     logs_init(NULL);
-
-    if (argc != 2)
-    {
-        DBG_F("usage: %s input_file\n", argv[0]);
+    if (parse_command_line(argc, argv, &src_filename, &show_info) != L_OK)
         return -1;
-    }
-    src_filename = argv[1];
+
     hide_console_cursore();
     set_conio_terminal_mode();
-
-    if (access(src_filename, F_OK | R_OK))
-    {
-        DBG_E("File %s not found\n", src_filename);
-
-        show_console_cursore();
-        return -1;
-    }
 
 #ifdef CONFIG_RASPBERRY_PI
     DBG_I("Init OMX components\n");
@@ -144,7 +176,7 @@ int main(int argc, char **argv)
     }
 #endif
 
-    if (decode_init(&demux_ctx, src_filename))
+    if (decode_init(&demux_ctx, src_filename, show_info))
         goto end;
 
 #ifdef CONFIG_RASPBERRY_PI
