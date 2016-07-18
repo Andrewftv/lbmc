@@ -895,12 +895,14 @@ void release_all_buffers(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
     media_buffer_t *buff;
-    
-    while ((buff = (media_buffer_t *)queue_pop(ctx->audio_ctx->fill_buff)) != NULL)
-        queue_push(ctx->audio_ctx->free_buff, (queue_node_t *)buff);
+
+    if (decode_is_audio(ctx))
+        while ((buff = (media_buffer_t *)queue_pop(ctx->audio_ctx->fill_buff)) != NULL)
+            queue_push(ctx->audio_ctx->free_buff, (queue_node_t *)buff);
 #ifdef CONFIG_VIDEO
-    while ((buff = (media_buffer_t *)queue_pop(ctx->video_ctx->fill_buff)) != NULL)
-        queue_push(ctx->video_ctx->free_buff, (queue_node_t *)buff);
+    if (decode_is_video(ctx))
+        while ((buff = (media_buffer_t *)queue_pop(ctx->video_ctx->fill_buff)) != NULL)
+            queue_push(ctx->video_ctx->free_buff, (queue_node_t *)buff);
 #endif
 }
 

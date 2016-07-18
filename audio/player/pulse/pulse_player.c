@@ -103,9 +103,6 @@ static void *player_routine(void *args)
     fmt = decode_get_sample_format(ctx->audio_ctx);
     ss.format = av2pa(fmt);
 
-    DBG_I("Audio player task started\n");
-    ctx->running = 1;
-
     DBG_I("Open pulse audio. format: %s rate: %d channels: %d\n",
         pa_sample_format_to_string(ss.format), ss.rate, ss.channels);
 
@@ -115,6 +112,12 @@ static void *player_routine(void *args)
         DBG_E("pa_simple_new() failed: %s\n", pa_strerror(error));
         goto finish;
     }
+
+    if (!decode_is_video(ctx->audio_ctx))
+        decode_start_read(ctx->audio_ctx);
+
+    DBG_I("Audio player task started\n");
+    ctx->running = 1;
 
     while(ctx->running)
     {
