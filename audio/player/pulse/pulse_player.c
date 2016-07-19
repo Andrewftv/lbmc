@@ -103,6 +103,9 @@ static void *player_routine(void *args)
     fmt = decode_get_sample_format(ctx->audio_ctx);
     ss.format = av2pa(fmt);
 
+    if (decode_setup_audio_buffers(ctx->audio_ctx, AUDIO_BUFFERS, AUDIO_BUFF_ALIGN, AUDIO_BUFF_SIZE))
+        return NULL;
+
     DBG_I("Open pulse audio. format: %s rate: %d channels: %d\n", pa_sample_format_to_string(ss.format), ss.rate,
         ss.channels);
 
