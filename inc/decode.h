@@ -120,4 +120,6 @@ ret_code_t decode_start(demux_ctx_h h);
 int decode_is_task_running(demux_ctx_h h);
 void decode_stop(demux_ctx_h h);
 
+void print_stream_info(demux_ctx_h h);
+
 #endif

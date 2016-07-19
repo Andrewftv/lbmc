@@ -852,17 +852,11 @@ int decode_is_audio(demux_ctx_h h)
 ret_code_t decode_start(demux_ctx_h h)
 {
     ret_code_t rc = L_OK;
-    pthread_attr_t attr;
-    struct sched_param param;
     demux_ctx_t *ctx = (demux_ctx_t *)h;
 
     /* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
-    pthread_attr_init(&attr);
-    param.sched_priority = 5;
-    pthread_attr_setschedparam(&attr, &param);
     if (pthread_create(&ctx->task, NULL, read_demux_data, h) < 0)
         rc = L_FAILED;
-    pthread_attr_destroy(&attr);
     return rc;
 }
 
@@ -1446,30 +1440,28 @@ static ret_code_t resampling_config(app_audio_ctx_t *ctx, int reinit)
     return ret;
 }
 
-static void print_stream_info(demux_ctx_t *ctx, AVPacket *pkt)
+void print_stream_info(demux_ctx_h h)
 {
-    int64_t pts_ms = 0;
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
 
-    if (ctx->video_ctx && pkt->stream_index == ctx->video_ctx->stream_idx)
-        pts_ms = ts2ms(&ctx->video_ctx->st->time_base, pkt->pts);
-    else if (ctx->audio_ctx && pkt->stream_index == ctx->audio_ctx->stream_idx)
-        pts_ms = ts2ms(&ctx->audio_ctx->st->time_base, pkt->pts);
+    if (!ctx || !ctx->show_info)
+        return;
 
     if (ctx->video_ctx && ctx->audio_ctx)
     {
-        printf("===> V:%02d:%02d  A:%02d:%02d TS:%lld/%lld\r", queue_count(ctx->video_ctx->fill_buff),
+        fprintf(stderr, "===> V:%02d:%02d  A:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
             ctx->video_ctx->buff_allocated, queue_count(ctx->audio_ctx->fill_buff),
-            ctx->audio_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
+            ctx->audio_ctx->buff_allocated, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
     }
     else if (ctx->video_ctx)
     {
-        printf("===> V:%02d:%02d TS:%lld/%lld\r", queue_count(ctx->video_ctx->fill_buff),
-            ctx->video_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
+        fprintf(stderr, "===> V:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
+            ctx->video_ctx->buff_allocated, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
     }
     else if (ctx->audio_ctx)
     {
-        printf("===> A:%02d:%02d TS:%lld\r", queue_count(ctx->audio_ctx->fill_buff),
-            ctx->audio_ctx->buff_allocated, (pts_ms < 0) ? 0 : pts_ms);
+        fprintf(stderr, "===> A:%02d:%02d\r", queue_count(ctx->audio_ctx->fill_buff),
+            ctx->audio_ctx->buff_allocated);
     }
 }
 
@@ -1478,7 +1470,6 @@ static void *read_demux_data(void *args)
     AVPacket pkt;
     int ret;
     int got_frame;
-    int info_count = 0;
     AVFrame *frame = NULL;
     demux_ctx_t *ctx = (demux_ctx_t *)args;
 
@@ -1516,9 +1507,6 @@ static void *read_demux_data(void *args)
         while (pkt.size > 0);
 
         decode_unlock(ctx);
-
-        if (ctx->show_info && !(info_count % 10))
-            print_stream_info(ctx, &orig_pkt);
 
         av_free_packet(&orig_pkt);
     }

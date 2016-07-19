@@ -35,7 +35,7 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
     OMX_ERRORTYPE err;
     OMX_STATETYPE state;
     OMX_PARAM_PORTDEFINITIONTYPE portdef;
-    media_buffer_t *buf[AUDIO_BUFFERS];
+    media_buffer_t *buf[2 * AUDIO_BUFFERS];
     int i;
 
     memset(&portdef, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
@@ -106,7 +106,7 @@ ret_code_t omxaudio_render_setup_buffers(ilcore_comp_h render, demux_ctx_h demux
 
 ret_code_t omxaudio_render_release_buffers(ilcore_comp_h render, demux_ctx_h demuxer)
 {
-    media_buffer_t *buf[AUDIO_BUFFERS];
+    media_buffer_t *buf[2 * AUDIO_BUFFERS];
     int i, size, count, align;
 
     decode_get_audio_buffs_info(demuxer, &size, &count, &align);

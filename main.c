@@ -245,6 +245,7 @@ int main(int argc, char **argv)
     int stop = 0;
     int is_muted = 0;
     int is_pause = 0;
+    int info_count = 0;
     cmdline_params_t params;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
@@ -430,6 +431,9 @@ int main(int argc, char **argv)
         else
         {
             usleep(100000);
+            info_count++;
+            if (!(info_count % 5))
+                print_stream_info(demux_ctx);
         }
     }
 
