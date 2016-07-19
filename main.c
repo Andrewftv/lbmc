@@ -216,16 +216,16 @@ static ret_code_t parse_command_line(int argc, char **argv, char **file, cmdline
         {
             if (parse_buffers_param(argv[i], &params->abuff_amount, &params->abuff_size, &params->abuff_align) == L_OK)
             {
-                printf("Audio buffers: amount=%d size=%d align=%d\n", params->vbuff_amount, params->vbuff_size,
-                    params->vbuff_align);
+                printf("Audio buffers: amount=%d size=%d align=%d\n", params->abuff_amount, params->abuff_size,
+                    params->abuff_align);
             }
         }
         else if (!strncmp(argv[i], CMDOPT_VIDEO_BUFFS, strlen(CMDOPT_VIDEO_BUFFS)))
         {
             if (parse_buffers_param(argv[i], &params->vbuff_amount, &params->vbuff_size, &params->vbuff_align) == L_OK)
             {
-                printf("Video buffers: amount=%d size=%d align=%d\n", params->abuff_amount, params->abuff_size,
-                    params->abuff_align);
+                printf("Video buffers: amount=%d size=%d align=%d\n", params->vbuff_amount, params->vbuff_size,
+                    params->vbuff_align);
             }
         }
         else
