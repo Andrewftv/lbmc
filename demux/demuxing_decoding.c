@@ -53,6 +53,11 @@ typedef struct {
     queue_h free_buff;
     queue_h fill_buff;
 
+    /* Requested buffers parameters */
+    int amount;
+    int size;
+    int align;
+
     int buff_allocated;
     int buff_align;
     int buff_size;
@@ -88,6 +93,11 @@ typedef struct {
 
     queue_h free_buff;
     queue_h fill_buff;
+
+    /* Requested buffers parameters */
+    int amount;
+    int size;
+    int align;
 
     int buff_allocated;
     int buff_align;
@@ -231,6 +241,30 @@ static ret_code_t reopen_audio_stream(demux_ctx_t *ctx, int cur_inx, int new_inx
     return L_OK;
 }
 
+void decode_set_requested_buffers_param(demux_ctx_h h, media_buffer_type_t type, int amount, int size, int align)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx)
+        return;
+
+    switch (type)
+    {
+    case MB_AUDIO_TYPE:
+        ctx->audio_ctx->amount = amount;
+        ctx->audio_ctx->size = size;
+        ctx->audio_ctx->align = align;
+        break;
+    case MB_VIDEO_TYPE:
+        ctx->video_ctx->amount = amount;
+        ctx->video_ctx->size = size;
+        ctx->video_ctx->align = align;
+        break;
+    default:
+        break;
+    }
+}
+
 void decode_set_current_playing_pts(demux_ctx_h h, int64_t pts)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
@@ -317,6 +351,9 @@ ret_code_t decode_setup_video_buffers(demux_ctx_h h, int amount, int align, int 
     media_buffer_t *vbuff;
     int i;
 
+    if (ctx->video_ctx->amount != -1)
+        amount = ctx->video_ctx->amount;
+
     vctx = ctx->video_ctx;
 #ifdef CONFIG_VIDEO_HW_DECODE
     for (i = 0; i < amount; i++)
@@ -345,13 +382,13 @@ ret_code_t decode_setup_video_buffers(demux_ctx_h h, int amount, int align, int 
         vbuff->type = MB_VIDEO_TYPE;
 
         rc = av_image_alloc(vbuff->s.video.buffer, vbuff->s.video.linesize, vctx->codec->width, vctx->codec->height,
-                AV_PIX_FMT_RGBA, 1);
+                AV_PIX_FMT_RGBA, align);
         if (rc < 0)
         {
             DBG_E("Could not allocate destination video buffer\n");
             return L_FAILED;
         }
-        vbuff->size = rc;
+        vbuff->size = len = rc;
 
         queue_push(vctx->free_buff, (queue_node_t *)vbuff);
     }
@@ -367,6 +404,10 @@ ret_code_t decode_setup_video_buffers(demux_ctx_h h, int amount, int align, int 
     vctx->buff_allocated = amount;
     vctx->buff_align = align;
     vctx->buff_size = len;
+
+    DBG_I("Allocated %d video buffers, size=%d alignment=%d\n", vctx->buff_allocated, vctx->buff_size,
+        vctx->buff_align);
+
     return L_OK;
 }
 #endif
@@ -874,6 +915,9 @@ ret_code_t decode_setup_audio_buffers(demux_ctx_h h, int amount, int align, int 
     enum AVSampleFormat dst_fmt;
     media_buffer_t *buff;
 
+    if (ctx->audio_ctx->amount != -1)
+        amount = ctx->audio_ctx->amount;
+
     dst_fmt = ctx->audio_ctx->codec->sample_fmt;
     if (av_sample_fmt_is_planar(dst_fmt)) 
         dst_fmt = planar_sample_to_same_packed(dst_fmt);
@@ -902,7 +946,7 @@ ret_code_t decode_setup_audio_buffers(demux_ctx_h h, int amount, int align, int 
             DBG_E("Could not allocate destination samples\n");
             break;
         }
-        ctx->audio_ctx->buff_size = buff->s.audio.buff_size = dst_linesize;
+        ctx->audio_ctx->buff_size = buff->s.audio.buff_size = len = dst_linesize;
         DBG_V("Buffer address is %p size=%d\n", buff->s.audio.data[0], dst_linesize);
 
         queue_push(ctx->audio_ctx->free_buff, (queue_node_t *)buff);
@@ -910,6 +954,10 @@ ret_code_t decode_setup_audio_buffers(demux_ctx_h h, int amount, int align, int 
 
     ctx->audio_ctx->buff_allocated = amount;
     ctx->audio_ctx->buff_align = align;
+    ctx->audio_ctx->buff_size = len;
+
+    DBG_I("Allocated %d audio buffers, size=%d alignment=%d\n", ctx->audio_ctx->buff_allocated,
+        ctx->audio_ctx->buff_size, ctx->audio_ctx->buff_align);
 
     return rc;
 }

@@ -39,8 +39,20 @@
 
 #define CMDOPT_SHOW_INFO    "--show-info"
 #define CMDOPT_HELP         "--help"
+#define CMDOPT_AUDIO_BUFFS  "--audio-buffs"
+#define CMDOPT_VIDEO_BUFFS  "--video-buffs"
 
-struct termios orig_termios;
+typedef struct {
+    int show_info;
+    int vbuff_amount;
+    int vbuff_size;
+    int vbuff_align;
+    int abuff_amount;
+    int abuff_size;
+    int abuff_align;
+} cmdline_params_t;
+
+static struct termios orig_termios;
 
 static void hide_console_cursore(void)
 {
@@ -101,11 +113,79 @@ static void show_usage(void)
     printf("Options:\n");
     printf("\t"CMDOPT_SHOW_INFO" - print buffers state and current PTS\n");
     printf("\t"CMDOPT_HELP"      - print this text\n");
+    printf("\t"CMDOPT_AUDIO_BUFFS"=<amount>:<size>:[<alignment>] - audio buffers parameters\n");
+    printf("\t"CMDOPT_VIDEO_BUFFS"=<amount>:<size>:[<alignment>] - video buffers parameters\n");
 }
 
-static ret_code_t parse_command_line(int argc, char **argv, char **file, int *show_info)
+static ret_code_t parse_buffers_param(char *str, int *amount, int *size, int *align)
+{
+    char *start, *end, tmp[64];
+
+    start = strchr(str, '=');
+    if (!start)
+        goto Error;
+
+    start++;
+    end = strchr(start, ':');
+    if (!end)
+    {
+        if (*start == '\0')
+            goto Error;
+
+        *amount = atoi(start);
+        return L_OK;
+    }
+    else
+    {
+        if ((end - start) > 64 || (end - start) <= 1)
+            goto Error;
+
+        strncpy(tmp, start, end - start);
+        tmp[end - start] = '\0';
+        *amount = atoi(tmp);
+    }
+    start = end + 1;
+    end = strchr(start, ':');
+    if (!end)
+    {
+        if (*start == '\0')
+            goto Error;
+
+        *size = atoi(start);
+        return L_OK;
+    }
+    else
+    {
+        if ((end - start) > 64 || (end - start) <= 1)
+            goto Error;
+
+        strncpy(tmp, start, end - start);
+        tmp[end - start] = '\0';
+        *size = atoi(tmp);
+    }
+    start = end + 1;
+    if (*start != '\0')
+        *align = atoi(start);
+
+    return L_OK;
+
+Error:
+    *amount = *size = *align = -1;
+    DBG_E("Incorrect format: %s\n", str);
+    return L_FAILED;
+}
+
+static ret_code_t parse_command_line(int argc, char **argv, char **file, cmdline_params_t *params)
 {
     int i;
+
+    params->show_info = 0;
+    params->vbuff_amount = -1;
+    params->vbuff_size = -1;
+    params->vbuff_align = -1;
+    params->abuff_amount = -1;
+    params->abuff_size = -1;
+    params->abuff_align = -1;
 
     if (argc < 2 || !strcmp(argv[1], CMDOPT_HELP))
     {
@@ -125,11 +205,33 @@ static ret_code_t parse_command_line(int argc, char **argv, char **file, int *sh
     for (i = 1; i < argc - 1; i++)
     {
         if (!strcmp(argv[i], CMDOPT_SHOW_INFO))
-            *show_info = 1;
-        else if (!strcmp(argv[1], CMDOPT_HELP))
+        {
+            params->show_info = 1;
+        }
+        else if (!strcmp(argv[i], CMDOPT_HELP))
+        {
             continue; /* Ignore it */
+        }
+        else if (!strncmp(argv[i], CMDOPT_AUDIO_BUFFS, strlen(CMDOPT_AUDIO_BUFFS)))
+        {
+            if (parse_buffers_param(argv[i], &params->abuff_amount, &params->abuff_size, &params->abuff_align) == L_OK)
+            {
+                printf("Audio buffers: amount=%d size=%d align=%d\n", params->vbuff_amount, params->vbuff_size,
+                    params->vbuff_align);
+            }
+        }
+        else if (!strncmp(argv[i], CMDOPT_VIDEO_BUFFS, strlen(CMDOPT_VIDEO_BUFFS)))
+        {
+            if (parse_buffers_param(argv[i], &params->vbuff_amount, &params->vbuff_size, &params->vbuff_align) == L_OK)
+            {
+                printf("Video buffers: amount=%d size=%d align=%d\n", params->abuff_amount, params->abuff_size,
+                    params->abuff_align);
+            }
+        }
         else
+        {
             printf("Unknown option: %s\n", argv[i]);
+        }
     }
     
     return L_OK;
@@ -143,7 +245,7 @@ int main(int argc, char **argv)
     int stop = 0;
     int is_muted = 0;
     int is_pause = 0;
-    int show_info = 0;
+    cmdline_params_t params;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
     ilcore_comp_h clock = NULL;
@@ -159,7 +261,7 @@ int main(int argc, char **argv)
 #endif
 
     logs_init(NULL);
-    if (parse_command_line(argc, argv, &src_filename, &show_info) != L_OK)
+    if (parse_command_line(argc, argv, &src_filename, &params) != L_OK)
         return -1;
 
     hide_console_cursore();
@@ -176,9 +278,13 @@ int main(int argc, char **argv)
     }
 #endif
 
-    if (decode_init(&demux_ctx, src_filename, show_info))
+    if (decode_init(&demux_ctx, src_filename, params.show_info))
         goto end;
 
+    decode_set_requested_buffers_param(demux_ctx, MB_AUDIO_TYPE, params.abuff_amount, params.abuff_size,
+        params.abuff_align);
+    decode_set_requested_buffers_param(demux_ctx, MB_VIDEO_TYPE, params.vbuff_amount, params.vbuff_size,
+        params.vbuff_align);
 #ifdef CONFIG_RASPBERRY_PI
     hdmi_init_display(&tv_state);
     gui_init(&hgui);
@@ -203,8 +309,8 @@ int main(int argc, char **argv)
     /* Main loop */
     while (decode_is_task_running(demux_ctx))
     {
-    if (kbhit())
-    {
+        if (kbhit())
+        {
             int ch;
 
             ch = getch();

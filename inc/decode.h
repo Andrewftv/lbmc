@@ -88,6 +88,7 @@ media_buffer_t *decode_get_next_audio_buffer(demux_ctx_h h, ret_code_t *rc);
 void decode_release_audio_buffer(demux_ctx_h h, media_buffer_t *buff);
 ret_code_t decode_setup_audio_buffers(demux_ctx_h h, int amount, int align, int len);
 void release_all_buffers(demux_ctx_h h);
+void decode_set_requested_buffers_param(demux_ctx_h h, media_buffer_type_t type, int amount, int size, int align);
 
 int decode_is_audio(demux_ctx_h h);
 ret_code_t decode_next_audio_stream(demux_ctx_h h);

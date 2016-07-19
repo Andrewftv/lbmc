@@ -380,7 +380,7 @@ static ret_code_t gl_init(video_player_h h)
     glGenTextures(1, &ctx->tex_subs);
 #endif
     
-    if (decode_setup_video_buffers(ctx->demux, VIDEO_BUFFERS, 16, 80 * 1024) != L_OK)
+    if (decode_setup_video_buffers(ctx->demux, VIDEO_BUFFERS, 1, 80 * 1024) != L_OK)
         return L_FAILED;
 
     decode_start_read(ctx->demux);
