@@ -33,7 +33,8 @@ int util_time_compare(struct timespec *t1, struct timespec *t2);
  * Substruct time.
  * Return time difference in miliseconds.
  */
-int util_time_sub(struct timespec *t1, struct timespec *t2);
+int util_time_diff(struct timespec *t1, struct timespec *t2);
 ret_code_t util_time_add(struct timespec *t, uint32_t ms);
+ret_code_t util_time_sub(struct timespec *t, uint32_t ms);
 
 #endif

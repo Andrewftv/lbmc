@@ -45,6 +45,11 @@ typedef enum {
     MB_CONTINUE_STATUS
 } media_buffer_status_t;
 
+typedef enum {
+    L_SEEK_FORWARD = 0,
+    L_SEEK_BACKWARD
+} seek_direction_t;
+
 typedef struct {
     uint8_t **data;
     size_t buff_size;
@@ -114,11 +119,16 @@ int decode_get_channels(demux_ctx_h h);
 ret_code_t decode_get_audio_buffs_info(demux_ctx_h h, int *size, int *cont, int *align);
 
 void decode_set_current_playing_pts(demux_ctx_h h, int64_t pts);
+int64_t decode_get_current_playing_pts(demux_ctx_h h);
+ret_code_t decode_seek(demux_ctx_h h, seek_direction_t dir, int seek_time_ms, int64_t *next_pts);
 
 /* Demux/decode task */
 ret_code_t decode_start(demux_ctx_h h);
 int decode_is_task_running(demux_ctx_h h);
 void decode_stop(demux_ctx_h h);
+
+void decode_lock(demux_ctx_h h);
+void decode_unlock(demux_ctx_h h);
 
 void print_stream_info(demux_ctx_h h);
 

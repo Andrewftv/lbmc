@@ -34,16 +34,20 @@
 #include "decode.h"
 #include "audio_player.h"
 #include "timeutils.h"
+#include "msleep.h"
 
 typedef struct {
     pthread_t task;
 
     int pause;
     int running;
+    int first_pkt;
 
-    int64_t corrected_pts;
-    int64_t last_pts;
+    msleep_h sched;
+    pthread_mutex_t lock;
+
     struct timespec base_time;
+    struct timespec start_pause;
 
     demux_ctx_h audio_ctx;
 } pulse_player_ctx_t;
@@ -52,11 +56,17 @@ static int init_context(pulse_player_ctx_t *ctx)
 {
     memset(ctx, 0, sizeof(pulse_player_ctx_t));
 
+    pthread_mutex_init(&ctx->lock, NULL);
+    ctx->first_pkt = 1;
+    msleep_init(&ctx->sched);
+
     return 0;
 }
 
 static void uninit_context(pulse_player_ctx_t *ctx)
 {
+    msleep_uninit(ctx->sched);
+    pthread_mutex_destroy(&ctx->lock);
 }
 
 static pa_sample_format_t av2pa(enum AVSampleFormat src_fmt)
@@ -95,7 +105,6 @@ static void *player_routine(void *args)
     int error;
     media_buffer_t *buf;
     enum AVSampleFormat fmt;
-    int first_pkt = 1;
     ret_code_t rc;
 
     ss.rate = decode_get_sample_rate(ctx->audio_ctx);
@@ -132,7 +141,9 @@ static void *player_routine(void *args)
             continue;
         }
 
+        audio_player_lock(ctx);
         buf = decode_get_next_audio_buffer(ctx->audio_ctx, &rc);
+        audio_player_unlock(ctx);
         if (!buf)
         {
             if (rc != L_STOPPING)
@@ -143,29 +154,33 @@ static void *player_routine(void *args)
 
         decode_set_current_playing_pts(ctx->audio_ctx, buf->pts_ms);
 
-        if (first_pkt)
+        if (ctx->first_pkt)
         {
             clock_gettime(CLOCK_MONOTONIC, &ctx->base_time);
-            first_pkt = 0;
+            ctx->first_pkt = 0;
         }
         else if (buf->pts_ms != AV_NOPTS_VALUE)
         {
             struct timespec curr_time;
-            int diff, pts_ms = (int)buf->pts_ms - ctx->corrected_pts;
+            int diff;
 
             clock_gettime(CLOCK_MONOTONIC, &curr_time);
-            diff = util_time_sub(&curr_time, &ctx->base_time);
-            DBG_V("Current PTS=%d time diff=%d\n", pts_ms, diff);
-            if (pts_ms > diff)
+            diff = util_time_diff(&curr_time, &ctx->base_time);
+            DBG_V("Current PTS=%lld time diff=%d\n", buf->pts_ms, diff);
+            if (diff > 0 && buf->pts_ms > diff)
             {
-                diff = pts_ms - diff;
+                diff = buf->pts_ms - diff;
+                if (diff > 5000)
+                {
+                    DBG_E("The frame requests %d msec wait. Drop it and continue\n", diff);
+                    decode_release_audio_buffer(ctx->audio_ctx, buf);
+                    continue;
+                }
                 DBG_V("Going to sleep for %d ms\n", diff);
-                usleep(diff * 1000);
-                ctx->last_pts = buf->pts_ms;
+                msleep_wait(ctx->sched, diff);
             }
-            else if (diff > pts_ms + 10)
+            else if (diff > buf->pts_ms + 30)
             {
-                ctx->last_pts = buf->pts_ms;
                 DBG_V("Drop this packet\n");
                 goto Drop;
             }
@@ -191,6 +206,42 @@ finish:
     return NULL;
 }
 
+void audio_player_lock(audio_player_h h)
+{
+    pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Can not lock audio player\n");
+        return;
+    }
+    pthread_mutex_lock(&ctx->lock);
+}
+
+void audio_player_unlock(audio_player_h h)
+{
+    pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Can not unlock audio player\n");
+        return;
+    }
+    pthread_mutex_unlock(&ctx->lock);
+}
+
+ret_code_t audio_player_seek(audio_player_h h, seek_direction_t dir, int32_t seek)
+{
+    pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)h;
+
+    if (dir == L_SEEK_FORWARD)
+        util_time_sub(&ctx->base_time, seek);
+    else if (dir == L_SEEK_BACKWARD)
+        util_time_add(&ctx->base_time, seek);
+
+    return L_OK;
+}
+
 int audio_player_is_runnung(audio_player_h h)
 {
     pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)h;
@@ -203,9 +254,18 @@ int audio_player_pause_toggle(audio_player_h player_ctx)
     pulse_player_ctx_t *ctx = (pulse_player_ctx_t *)player_ctx;
 
     if (ctx->pause)
-        clock_gettime(CLOCK_MONOTONIC, &ctx->base_time);
+    {
+        struct timespec end_pause;
+        uint32_t diff;
+
+        clock_gettime(CLOCK_MONOTONIC, &end_pause);
+        diff = util_time_diff(&end_pause, &ctx->start_pause);
+        util_time_add(&ctx->base_time, diff);
+    }
     else
-        ctx->corrected_pts = ctx->last_pts;
+    {
+        clock_gettime(CLOCK_MONOTONIC, &ctx->start_pause);
+    }
     ctx->pause = !ctx->pause;
 
     return ctx->pause;
@@ -226,7 +286,7 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h, void *c
     ctx = (pulse_player_ctx_t *)malloc(sizeof(pulse_player_ctx_t));
     if (!ctx)
     {
-        DBG_E("Mamory allocation failed\n");
+        DBG_E("Memory allocation failed\n");
         return L_FAILED;
     }
 
@@ -249,6 +309,7 @@ void audio_player_stop(audio_player_h player_ctx, int stop)
         return;
 
     ctx->running = 0;
+    msleep_wakeup(ctx->sched);
     /* Waiting for player task */
     pthread_join(ctx->task, NULL);
 

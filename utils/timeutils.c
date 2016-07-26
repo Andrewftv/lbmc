@@ -32,7 +32,7 @@ int util_time_compare(struct timespec *t1, struct timespec *t2)
     return 0;
 }
 
-int util_time_sub(struct timespec *t1, struct timespec *t2)
+int util_time_diff(struct timespec *t1, struct timespec *t2)
 {
     int diff;
 
@@ -55,3 +55,21 @@ ret_code_t util_time_add(struct timespec *t, uint32_t ms)
     }
     return L_OK;
 }
+
+ret_code_t util_time_sub(struct timespec *t, uint32_t ms)
+{
+    int32_t ms_only = ms % 1000;
+
+    t->tv_sec -= ms / 1000;
+    if (t->tv_nsec < ms_only * 1000000)
+    {
+        t->tv_sec--;
+        t->tv_nsec = 1000000000 + t->tv_nsec - ms_only;
+    }
+    else
+    {
+        t->tv_nsec -= (ms_only * 1000000);
+    }
+    return L_OK;
+}
+

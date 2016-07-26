@@ -37,6 +37,10 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h, void *c
 void audio_player_stop(audio_player_h player_ctx, int stop);
 int audio_player_pause_toggle(audio_player_h player_ctx);
 ret_code_t audio_player_mute_toggle(audio_player_h player_ctx, int *is_muded);
+ret_code_t audio_player_seek(audio_player_h h, seek_direction_t dir, int32_t seek);
+
+void audio_player_lock(audio_player_h h);
+void audio_player_unlock(audio_player_h h);
 
 int audio_player_is_runnung(audio_player_h h);
 

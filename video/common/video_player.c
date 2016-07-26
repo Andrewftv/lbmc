@@ -35,16 +35,51 @@ int video_player_pause_toggle(video_player_context *player_ctx)
 
     if (player_ctx->state == PLAYER_PAUSE)
     {
+        struct timespec end_pause;
+        uint32_t diff;
+
         player_ctx->state = PLAYER_PLAY;
-        clock_gettime(CLOCK_MONOTONIC, &player_ctx->base_time);
+        clock_gettime(CLOCK_MONOTONIC, &end_pause);
+        diff = util_time_diff(&end_pause, &player_ctx->start_pause);
+        util_time_add(&player_ctx->base_time, diff);
     }
     else
     {
         player_ctx->state = PLAYER_PAUSE;
-        player_ctx->corrected_pts = player_ctx->last_pts;
+        clock_gettime(CLOCK_MONOTONIC, &player_ctx->start_pause);
     }
 
     return (player_ctx->state == PLAYER_PAUSE);
+}
+
+void video_player_lock(video_player_context *ctx)
+{
+    if (!ctx)
+    {
+        DBG_E("Can not lock video player\n");
+        return;
+    }
+    pthread_mutex_lock(&ctx->lock);
+}
+
+void video_player_unlock(video_player_context *ctx)
+{
+    if (!ctx)
+    {
+        DBG_E("Can not unlock video player\n");
+        return;
+    }
+    pthread_mutex_unlock(&ctx->lock);
+}
+
+ret_code_t video_player_seek(video_player_context *ctx, seek_direction_t dir, int32_t seek)
+{
+    if (dir == L_SEEK_FORWARD)
+        util_time_sub(&ctx->base_time, seek);
+    else if (dir == L_SEEK_BACKWARD)
+        util_time_add(&ctx->base_time, seek);
+
+    return L_OK;
 }
 
 void video_player_stop(video_player_context *player_ctx, int stop)
@@ -54,9 +89,17 @@ void video_player_stop(video_player_context *player_ctx, int stop)
 
     player_ctx->stop = stop;
     player_ctx->running = 0;
+#ifndef CONFIG_RASPBERRY_PI
+    msleep_wakeup(player_ctx->sched);
+#endif
+    
     /* Waiting for player task */
     if (player_ctx->task)
         pthread_join(player_ctx->task, NULL);
+
+#ifndef CONFIG_RASPBERRY_PI
+    msleep_uninit(player_ctx->sched);
+#endif
 
     if (player_ctx->priv)
         free(player_ctx->priv);
@@ -65,19 +108,20 @@ void video_player_stop(video_player_context *player_ctx, int stop)
 void *player_main_routine(void *args)
 {
     media_buffer_t *buf;
-#ifndef CONFIG_RASPBERRY_PI
-    int first_pkt = 1;
-#endif
     ret_code_t rc;
     video_player_context *player_ctx = (video_player_context *)args;
-    //struct timespec start, end;
 
     DBG_I("Video player task started.\n");
 
     if (player_ctx->init(player_ctx->priv))
         return NULL;
 
+    pthread_mutex_init(&player_ctx->lock, NULL);
     player_ctx->running = 1;
+#ifndef CONFIG_RASPBERRY_PI
+    player_ctx->first_pkt = 1;
+    msleep_init(&player_ctx->sched);
+#endif
 
     while(player_ctx->running)
     {
@@ -90,13 +134,9 @@ void *player_main_routine(void *args)
             continue;
         }
 
-        //clock_gettime(CLOCK_MONOTONIC, &start);
+        video_player_lock(player_ctx);
         buf = decode_get_next_video_buffer(player_ctx->demux_ctx, &rc);
-        //clock_gettime(CLOCK_MONOTONIC, &end);
-        //if (buf)
-        //    DBG_I("--- new buff #%d timeout %d\n", buf->number, util_time_sub(&end, &start));
-        //else
-        //    DBG_I("--- no packet. timeout %d\n", util_time_sub(&end, &start));
+        video_player_unlock(player_ctx);
         if (!buf)
         {
             if (rc == L_FAILED)
@@ -122,32 +162,33 @@ void *player_main_routine(void *args)
             }
         }
 #ifndef CONFIG_RASPBERRY_PI
-        if (first_pkt)
+        if (player_ctx->first_pkt)
         {
             clock_gettime(CLOCK_MONOTONIC, &player_ctx->base_time);
-            first_pkt = 0;
+            player_ctx->first_pkt = 0;
         }
         else if (buf->pts_ms != AV_NOPTS_VALUE)
         {
             struct timespec curr_time;
-            int diff, pts_ms = (int)buf->pts_ms - player_ctx->corrected_pts;
+            int diff;
 
             clock_gettime(CLOCK_MONOTONIC, &curr_time);
-            diff = util_time_sub(&curr_time, &player_ctx->base_time);
-            DBG_V("Current PTS=%d time diff=%d\n", pts_ms, diff);
-            if (pts_ms > diff)
+            diff = util_time_diff(&curr_time, &player_ctx->base_time);
+            DBG_V("Current PTS=%lld time diff=%d\n", buf->pts_ms, diff);
+            if (diff > 0 && buf->pts_ms > diff)
             {
-                diff = pts_ms - diff;
+                diff = buf->pts_ms - diff;
+                if (diff > 5000)
+                {
+                    DBG_E("The frame requests %d msec wait. Drop it and continue\n", diff);
+                    decode_release_video_buffer(player_ctx->demux_ctx, buf);
+                    continue;
+                }
                 DBG_V("Going to sleep for %d ms\n", diff);
-                usleep(diff * 1000);
+                msleep_wait(player_ctx->sched, diff);
             }
-            player_ctx->last_pts = buf->pts_ms;
         }
 #endif
-        //if (buf->pts_ms != AV_NOPTS_VALUE)
-        //    fprintf(stderr, "--- new frame pts=%lld\n", buf->pts_ms);
-        //else
-        //    fprintf(stderr, "--- new frame pts=NOPTS\n");
         player_ctx->draw_frame(player_ctx->priv, buf);
 
 #ifndef CONFIG_RASPBERRY_PI
@@ -157,8 +198,10 @@ void *player_main_routine(void *args)
 
     player_ctx->running = 0;
 
+    pthread_mutex_destroy(&player_ctx->lock);
     player_ctx->uninit(player_ctx->priv);
 
     DBG_I("Video player task finished.\n");
     return NULL;
 }
+

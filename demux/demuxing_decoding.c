@@ -64,6 +64,7 @@ typedef struct {
     int frame_count;
     int stream_idx;
     int audio_streams;
+    int duration; /* msec */
 
     /* Destination format after resampling */
     enum AVSampleFormat dst_fmt;
@@ -105,6 +106,7 @@ typedef struct {
     int subtitle_stream_idx;
     int stream_idx;
     int frame_count;
+    int duration; /* msec */
 } app_video_ctx_t;
 #endif
 
@@ -133,14 +135,109 @@ static ret_code_t open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, 
 static ret_code_t resampling_config(app_audio_ctx_t *ctx, int reinit);
 static void uninit_audio_buffers(app_audio_ctx_t *ctx);
 
-static void decode_lock(demux_ctx_t *ctx)
+static int64_t ts2ms(AVRational *time_base, int64_t ts)
 {
+    if (ts == AV_NOPTS_VALUE)
+        return AV_NOPTS_VALUE;
+
+    return ts * time_base->num * 1000 / time_base->den;
+}
+
+void decode_lock(demux_ctx_h h)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Can not lock decoder\n");
+        return;
+    }
     pthread_mutex_lock(&ctx->lock);
 }
 
-static void decode_unlock(demux_ctx_t *ctx)
+void decode_unlock(demux_ctx_h h)
 {
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Can not unlock decoder\n");
+        return;
+    }
     pthread_mutex_unlock(&ctx->lock);
+}
+
+static int get_stream_duration(demux_ctx_t *ctx)
+{
+    int duration = 0;
+
+    if (decode_is_video(ctx))
+        duration = ctx->video_ctx->duration;
+    else if (decode_is_audio(ctx))
+        duration = ctx->audio_ctx->duration;
+
+    return duration;
+}
+
+ret_code_t decode_seek(demux_ctx_h h, seek_direction_t dir, int seek_time_ms, int64_t *next_pts)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+    int64_t pts, pts_ms;
+    int duration;
+
+    if (!ctx)
+    {
+        DBG_E("Incorrect context\n");
+        return L_FAILED;
+    }
+
+    duration = get_stream_duration(ctx);
+    if (!duration)
+    {
+        DBG_E("Seek on zero length stream\n");
+        return L_FAILED;
+    }
+
+    pts_ms = decode_get_current_playing_pts(ctx);
+    switch (dir)
+    {
+    case L_SEEK_FORWARD:
+        if ((pts_ms + seek_time_ms) < duration)
+            pts_ms += seek_time_ms;
+        else
+            pts_ms = duration;
+        break;
+    case L_SEEK_BACKWARD:
+        pts_ms -= seek_time_ms;
+        if (pts_ms < 0)
+            pts_ms = 0;
+        break;
+    default:
+        DBG_E("Incorect seek direction\n");
+        return L_FAILED;
+    }
+
+    pts = pts_ms * (AV_TIME_BASE / 1000);
+    DBG_I("Seek for PTS=%lld(%lld)\n", pts, pts_ms);
+
+    if (avformat_seek_file(ctx->fmt_ctx, -1, INT64_MIN, pts, INT64_MAX,
+        (dir == L_SEEK_BACKWARD) ? AVSEEK_FLAG_BACKWARD : 0) < 0)
+    {
+        DBG_E("av_seek_frame failed\n");
+        return L_FAILED;
+    }
+
+    /* Flush codecs buffers */
+    avcodec_flush_buffers(ctx->audio_ctx->codec);
+    avcodec_flush_buffers(ctx->video_ctx->codec);
+
+    /* Flash all filled buffers */
+    release_all_buffers(ctx);
+
+    if (next_pts)
+        *next_pts = pts_ms;
+
+    return L_OK;
 }
 
 static ret_code_t timedwait_buffer(msleep_h h, int timeout)
@@ -251,11 +348,15 @@ void decode_set_requested_buffers_param(demux_ctx_h h, media_buffer_type_t type,
     switch (type)
     {
     case MB_AUDIO_TYPE:
+        if (!decode_is_audio(h))
+            break;
         ctx->audio_ctx->amount = amount;
         ctx->audio_ctx->size = size;
         ctx->audio_ctx->align = align;
         break;
     case MB_VIDEO_TYPE:
+        if (!decode_is_video(h))
+            break;
         ctx->video_ctx->amount = amount;
         ctx->video_ctx->size = size;
         ctx->video_ctx->align = align;
@@ -263,6 +364,19 @@ void decode_set_requested_buffers_param(demux_ctx_h h, media_buffer_type_t type,
     default:
         break;
     }
+}
+
+int64_t decode_get_current_playing_pts(demux_ctx_h h)
+{
+    demux_ctx_t *ctx = (demux_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Incorrect context\n");
+        return - 1;
+    }
+
+    return ctx->curr_pts;
 }
 
 void decode_set_current_playing_pts(demux_ctx_h h, int64_t pts)
@@ -476,7 +590,6 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
         vctx->pix_fmt = video_stream->codec->pix_fmt;
         vctx->codec_id = video_stream->codec->codec_id;
        
-        DBG_I("Codec extradata size is: %d\n", video_stream->codec->extradata_size);
         vctx->codec_ext_data = (uint8_t *)malloc(video_stream->codec->extradata_size);
         memcpy(vctx->codec_ext_data, video_stream->codec->extradata, video_stream->codec->extradata_size);
         vctx->codec_ext_data_size = video_stream->codec->extradata_size;
@@ -491,7 +604,9 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
             vctx->fps_rate = video_stream->r_frame_rate.num;
             vctx->fps_scale = video_stream->r_frame_rate.den;
         }
-        
+       
+        vctx->duration = ts2ms(&video_stream->time_base, video_stream->duration);
+        DBG_I("Video stream was found. index=%d durution=%d\n", stream_index, vctx->duration); 
         msleep_init(&vctx->empty_buff);
         msleep_init(&vctx->full_buff);
 
@@ -535,8 +650,10 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
         actx->codec = audio_stream->codec;
         actx->st = audio_stream;
 
+        actx->duration = ts2ms(&audio_stream->time_base, audio_stream->duration);
         actx->audio_streams = get_audio_streams_count(ctx->fmt_ctx);
-        DBG_I("Audio stream was found. Index = %d total %d\n", stream_index, actx->audio_streams);
+        DBG_I("Audio stream was found. Index = %d total %d duration=%d\n", stream_index, actx->audio_streams,
+            actx->duration);
 
         msleep_init(&actx->empty_buff);
         msleep_init(&actx->full_buff);
@@ -964,6 +1081,7 @@ void release_all_buffers(demux_ctx_h h)
     if (decode_is_audio(ctx))
         while ((buff = (media_buffer_t *)queue_pop(ctx->audio_ctx->fill_buff)) != NULL)
             queue_push(ctx->audio_ctx->free_buff, (queue_node_t *)buff);
+
 #ifdef CONFIG_VIDEO
     if (decode_is_video(ctx))
         while ((buff = (media_buffer_t *)queue_pop(ctx->video_ctx->fill_buff)) != NULL)
@@ -1024,14 +1142,6 @@ static enum AVSampleFormat planar_sample_to_same_packed(enum AVSampleFormat fmt)
     return dst_fmt;
 }
 
-static int64_t ts2ms(AVRational *time_base, int64_t ts)
-{
-    if (ts == AV_NOPTS_VALUE)
-        return AV_NOPTS_VALUE;
-
-    return ts * time_base->num * 1000 / time_base->den;
-}
-
 static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx, AVFrame *frame, AVPacket *pkt)
 {
     int ret;
@@ -1070,7 +1180,7 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
         timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
         buff = (media_buffer_t *)queue_pop(ctx->free_buff);
     }
-
+    
     unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
 
     if(pkt->pts != AV_NOPTS_VALUE)
@@ -1443,25 +1553,59 @@ static ret_code_t resampling_config(app_audio_ctx_t *ctx, int reinit)
 void print_stream_info(demux_ctx_h h)
 {
     demux_ctx_t *ctx = (demux_ctx_t *)h;
+    int count, i, duration = 0;
+    int hour, min, sec, curr_hour, curr_min, curr_sec;
+    int temp;
 
     if (!ctx || !ctx->show_info)
         return;
 
+    duration = get_stream_duration(ctx);
+    if (duration)
+    {
+        /* Print the progress */
+        count = ctx->curr_pts * 10 / duration;
+        fprintf(stderr, "[");
+        for (i = 0; i < count; i++)
+            fprintf(stderr, "=");
+        fprintf(stderr, ">");
+        for (i = 0; i < 10 - count -1; i++)
+            fprintf(stderr, " ");
+        fprintf(stderr, "] ");
+    }
+
+    temp = ctx->curr_pts / 1000;
+    curr_sec = temp % 60;
+    temp /= 60;
+    curr_min = temp % 60;
+    temp /= 60;
+    curr_hour = temp;
+
+    temp = duration / 1000;
+    sec = temp % 60;
+    temp /= 60;
+    min = temp % 60;
+    temp /= 60;
+    hour = temp;
+
     if (ctx->video_ctx && ctx->audio_ctx)
     {
-        fprintf(stderr, "===> V:%02d:%02d  A:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
-            ctx->video_ctx->buff_allocated, queue_count(ctx->audio_ctx->fill_buff),
-            ctx->audio_ctx->buff_allocated, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
+        fprintf(stderr, "V-%02d:%02d  A-%02d:%02d TS-%02d:%02d:%02d/%02d:%02d:%02d          \r",
+            queue_count(ctx->video_ctx->fill_buff), ctx->video_ctx->buff_allocated,
+            queue_count(ctx->audio_ctx->fill_buff), ctx->audio_ctx->buff_allocated, curr_hour, curr_min, curr_sec, hour,
+            min, sec);
     }
     else if (ctx->video_ctx)
     {
-        fprintf(stderr, "===> V:%02d:%02d TS:%lld\r", queue_count(ctx->video_ctx->fill_buff),
-            ctx->video_ctx->buff_allocated, (ctx->curr_pts < 0) ? 0 : ctx->curr_pts);
+        fprintf(stderr, "V-%02d:%02d TS-%02d:%02d:%02d/%02d:%02d:%02d          \r",
+            queue_count(ctx->video_ctx->fill_buff), ctx->video_ctx->buff_allocated, curr_hour, curr_min, curr_sec, hour,
+            min, sec);
     }
     else if (ctx->audio_ctx)
     {
-        fprintf(stderr, "===> A:%02d:%02d\r", queue_count(ctx->audio_ctx->fill_buff),
-            ctx->audio_ctx->buff_allocated);
+        fprintf(stderr, "A-%02d:%02d TS-%02d:%02d:%02d/%02d:%02d:%02d          \r",
+            queue_count(ctx->audio_ctx->fill_buff), ctx->audio_ctx->buff_allocated, curr_hour, curr_min, curr_sec, hour,
+            min, sec);
     }
 }
 
@@ -1490,12 +1634,18 @@ static void *read_demux_data(void *args)
     pkt.size = 0;
 
     /* read frames from the file */
-    while (av_read_frame(ctx->fmt_ctx, &pkt) >= 0 && !ctx->stop_decode)
+    while (!ctx->stop_decode)
     {
-        AVPacket orig_pkt = pkt;
+        AVPacket orig_pkt;
 
         decode_lock(ctx);
-
+        if (av_read_frame(ctx->fmt_ctx, &pkt) < 0)
+        {
+            decode_unlock(ctx);
+            break;
+        }
+        decode_unlock(ctx);
+        orig_pkt = pkt;
         do
         {
             ret = decode_packet(&got_frame, 0, ctx, frame, &pkt);
@@ -1506,19 +1656,8 @@ static void *read_demux_data(void *args)
         }
         while (pkt.size > 0);
 
-        decode_unlock(ctx);
-
         av_free_packet(&orig_pkt);
     }
-
-    /* flush cached frames */
-    pkt.data = NULL;
-    pkt.size = 0;
-    do
-    {
-        decode_packet(&got_frame, 1, ctx, frame, &pkt);
-    }
-    while (got_frame);
 
     printf("\n");
 

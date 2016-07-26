@@ -99,7 +99,7 @@ static int kbhit()
 static int getch()
 {
     int rc;
-    uint8_t ch;
+    uint16_t ch = 0;
     
     if ((rc = read(0, &ch, sizeof(ch))) < 0) 
         return rc;
@@ -247,6 +247,7 @@ int main(int argc, char **argv)
     int is_pause = 0;
     int info_count = 0;
     cmdline_params_t params;
+    ret_code_t rc;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
     ilcore_comp_h clock = NULL;
@@ -312,10 +313,10 @@ int main(int argc, char **argv)
     {
         if (kbhit())
         {
-            int ch;
+            uint16_t ch;
 
             ch = getch();
-            switch(ch)
+            switch(ch & 0xff)
             {
             case 'q':
                 stop = 1;
@@ -367,6 +368,36 @@ int main(int argc, char **argv)
                     }
                 }
 #endif
+                break;
+            case 0x43:
+                DBG_I("Seek right 60 sec\n");
+                audio_player_lock(aplayer_ctx);
+                video_player_lock(&vplayer_ctx);
+                decode_lock(demux_ctx);
+                rc = decode_seek(demux_ctx, L_SEEK_FORWARD, 60 * 1000, NULL);
+                decode_unlock(demux_ctx);
+                if (rc == L_OK)
+                {
+                    audio_player_seek(aplayer_ctx, L_SEEK_FORWARD, 60 * 1000);
+                    video_player_seek(&vplayer_ctx, L_SEEK_FORWARD, 60 * 1000);
+                }
+                video_player_unlock(&vplayer_ctx);
+                audio_player_unlock(aplayer_ctx);
+                break;
+            case 0x44:
+                DBG_I("Seek left 60 sec\n");
+                audio_player_lock(aplayer_ctx);
+                video_player_lock(&vplayer_ctx);
+                decode_lock(demux_ctx);
+                rc = decode_seek(demux_ctx, L_SEEK_BACKWARD, 60 * 1000, NULL);
+                decode_unlock(demux_ctx);
+                if (rc == L_OK)
+                {
+                    audio_player_seek(aplayer_ctx, L_SEEK_BACKWARD, 60 * 1000);
+                    video_player_seek(&vplayer_ctx, L_SEEK_BACKWARD, 60 * 1000);
+                }
+                video_player_unlock(&vplayer_ctx);
+                audio_player_unlock(aplayer_ctx);
                 break;
             case 'a':
                 decode_next_audio_stream(demux_ctx);
@@ -441,17 +472,23 @@ end:
     DBG_I("Leave main loop\n");
     show_console_cursore();
     release_all_buffers(demux_ctx);
-    DBG_I("Stopping audio player... \n");
-    audio_player_stop(aplayer_ctx, stop);
-    DBG_I("Done\n");
+    if (decode_is_audio(demux_ctx))
+    {
+        DBG_I("Stopping audio player... \n");
+        audio_player_stop(aplayer_ctx, stop);
+        DBG_I("Done\n");
+    }
 #ifdef CONFIG_VIDEO
-    DBG_I("Stopping video player... \n");
+    if (decode_is_video(demux_ctx))
+    {
+        DBG_I("Stopping video player... \n");
 #ifdef CONFIG_RASPBERRY_PI
-    gui_uninit(hgui);
-    hdmi_uninit_display(&tv_state);
+        gui_uninit(hgui);
+        hdmi_uninit_display(&tv_state);
 #endif
-    video_player_stop(&vplayer_ctx, stop);
-    DBG_I("Done\n");
+        video_player_stop(&vplayer_ctx, stop);
+        DBG_I("Done\n");
+    }
 #endif
     decode_uninit(demux_ctx);
 #ifdef CONFIG_RASPBERRY_PI
