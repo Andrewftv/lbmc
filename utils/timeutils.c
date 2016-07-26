@@ -44,11 +44,10 @@ int util_time_sub(struct timespec *t1, struct timespec *t2)
 
 ret_code_t util_time_add(struct timespec *t, uint32_t ms)
 {
-    int64_t ms_only = ms % 1000;
+    int32_t ms_only = ms % 1000;
 
     t->tv_sec += ms / 1000;
-    t->tv_sec += ((ms_only * 1000000 + t->tv_nsec) / 1000000000);
-    t->tv_nsec += ((ms_only * 1000000 + t->tv_nsec) % 1000000000);
+    t->tv_nsec += (ms_only * 1000000);
     if (t->tv_nsec > 999999999)
     {
         t->tv_nsec -= 1000000000;
