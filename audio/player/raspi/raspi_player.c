@@ -45,6 +45,8 @@ typedef struct {
     int eos;
     int stop;
 
+    pthread_mutex_t lock;
+
     demux_ctx_h demuxer;
     ilcore_comp_h render;
     ilcore_comp_h clock;
@@ -59,6 +61,35 @@ OMX_ERRORTYPE audio_play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppData
     decode_release_audio_buffer(ctx->demuxer, buf);
 
     return OMX_ErrorNone;
+}
+
+void audio_player_lock(audio_player_h h)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Can not lock audio player\n");
+        return;
+    }
+    pthread_mutex_lock(&ctx->lock);
+}
+
+void audio_player_unlock(audio_player_h h)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Can not unlock audio player\n");
+        return;
+    }
+    pthread_mutex_unlock(&ctx->lock);
+}
+
+ret_code_t audio_player_seek(audio_player_h h, seek_direction_t dir, int32_t seek)
+{
+    return L_OK;
 }
 
 static ret_code_t audio_player_init(player_ctx_t *ctx)
@@ -315,6 +346,7 @@ ret_code_t audio_player_start(audio_player_h *player_ctx, demux_ctx_h h, ilcore_
     ctx->demuxer =  h;
     ctx->clock = clock;
     ctx->volume = -1; /* Uninited */
+    pthread_mutex_init(&ctx->lock, NULL);
 
     *player_ctx = ctx;
 
@@ -344,6 +376,7 @@ void audio_player_stop(audio_player_h h, int stop)
     /* Waiting for player task */
     pthread_join(ctx->task, NULL);
     
+    pthread_mutex_destroy(&ctx->lock);
     free(ctx);
 }
 

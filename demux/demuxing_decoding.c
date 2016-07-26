@@ -64,7 +64,6 @@ typedef struct {
     int frame_count;
     int stream_idx;
     int audio_streams;
-    int duration; /* msec */
 
     /* Destination format after resampling */
     enum AVSampleFormat dst_fmt;
@@ -106,7 +105,6 @@ typedef struct {
     int subtitle_stream_idx;
     int stream_idx;
     int frame_count;
-    int duration; /* msec */
 } app_video_ctx_t;
 #endif
 
@@ -169,14 +167,10 @@ void decode_unlock(demux_ctx_h h)
 
 static int get_stream_duration(demux_ctx_t *ctx)
 {
-    int duration = 0;
+    if (!ctx || !ctx->fmt_ctx)
+        return 0;
 
-    if (decode_is_video(ctx))
-        duration = ctx->video_ctx->duration;
-    else if (decode_is_audio(ctx))
-        duration = ctx->audio_ctx->duration;
-
-    return duration;
+    return ctx->fmt_ctx->duration / 1000;
 }
 
 ret_code_t decode_seek(demux_ctx_h h, seek_direction_t dir, int seek_time_ms, int64_t *next_pts)
@@ -229,8 +223,9 @@ ret_code_t decode_seek(demux_ctx_h h, seek_direction_t dir, int seek_time_ms, in
 
     /* Flush codecs buffers */
     avcodec_flush_buffers(ctx->audio_ctx->codec);
+#ifndef CONFIG_VIDEO_HW_DECODE
     avcodec_flush_buffers(ctx->video_ctx->codec);
-
+#endif
     /* Flash all filled buffers */
     release_all_buffers(ctx);
 
@@ -605,8 +600,7 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
             vctx->fps_scale = video_stream->r_frame_rate.den;
         }
        
-        vctx->duration = ts2ms(&video_stream->time_base, video_stream->duration);
-        DBG_I("Video stream was found. index=%d durution=%d\n", stream_index, vctx->duration); 
+        DBG_I("Video stream was found. index=%d\n", stream_index); 
         msleep_init(&vctx->empty_buff);
         msleep_init(&vctx->full_buff);
 
@@ -650,10 +644,8 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
         actx->codec = audio_stream->codec;
         actx->st = audio_stream;
 
-        actx->duration = ts2ms(&audio_stream->time_base, audio_stream->duration);
         actx->audio_streams = get_audio_streams_count(ctx->fmt_ctx);
-        DBG_I("Audio stream was found. Index = %d total %d duration=%d\n", stream_index, actx->audio_streams,
-            actx->duration);
+        DBG_I("Audio stream was found. Index = %d total %d\n", stream_index, actx->audio_streams);
 
         msleep_init(&actx->empty_buff);
         msleep_init(&actx->full_buff);
