@@ -28,7 +28,8 @@
 #include "omxclock.h"
 
 typedef struct {
-    demux_ctx_h demux;
+    video_player_common_ctx_t common;
+
     ilcore_comp_h decoder;
     ilcore_comp_h render;
     ilcore_comp_h scheduler;
@@ -39,8 +40,6 @@ typedef struct {
     ilcore_tunnel_h tunnel_clock;
 
     int eos;
-
-    video_player_context *parent;
 } player_ctx_t;
 
 static int nalu_format_start_codes(enum AVCodecID codec_id, uint8_t *extradata, int extrasize)
@@ -87,7 +86,7 @@ static OMX_ERRORTYPE play_buffer_done(OMX_HANDLETYPE hComponent, OMX_PTR pAppDat
         return OMX_ErrorBadParameter;
     }
 
-    decode_release_video_buffer(ctx->demux, buf);
+    decode_release_video_buffer(ctx->common.demux_ctx, buf);
 
     return OMX_ErrorNone;
 }
@@ -159,7 +158,7 @@ static void raspi_release_buffers(player_ctx_t *ctx)
     {
         OMX_BUFFERHEADERTYPE *hdr;
 
-        buffers[i] = decode_get_free_video_buffer(ctx->demux);
+        buffers[i] = decode_get_free_video_buffer(ctx->common.demux_ctx);
         if (!buffers[i])
         {
             DBG_E("Can not get demuxer buffer #%d\n", i);
@@ -182,7 +181,7 @@ static void raspi_release_buffers(player_ctx_t *ctx)
 
     for (i = 0; i < VIDEO_BUFFERS; i++)
         if (buffers[i])
-            decode_release_video_buffer(ctx->demux, buffers[i]);
+            decode_release_video_buffer(ctx->common.demux_ctx, buffers[i]);
 }
 
 static void eof_callback(void *context)
@@ -198,10 +197,10 @@ static void wait_complition(player_ctx_t *ctx)
     OMX_BUFFERHEADERTYPE *hdr;
     OMX_ERRORTYPE err;
 
-    if (ctx->parent->stop)
+    if (ctx->common.stop)
         return; /* Force stop player by user */
 
-    buf = decode_get_free_video_buffer(ctx->demux);
+    buf = decode_get_free_video_buffer(ctx->common.demux_ctx);
     if (!buf)
     {
         DBG_E("Unable to get free video buffer\n");
@@ -277,9 +276,9 @@ static ret_code_t raspi_init(video_player_h h)
     OMX_ERRORTYPE err;
     media_buffer_t *buffers[VIDEO_BUFFERS];
 
-    video_player_pause_toggle(ctx->parent);
+    video_player_pause_toggle(ctx);
 
-    if (decode_get_codec_id(ctx->demux, &codec_id) != L_OK)
+    if (decode_get_codec_id(ctx->common.demux_ctx, &codec_id) != L_OK)
     {   
         DBG_E("Uneble get video stream codec ID\n");
         return L_FAILED;
@@ -337,7 +336,7 @@ static ret_code_t raspi_init(video_player_h h)
     format.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
     format.eCompressionFormat = coding_type;
     
-    decode_get_frame_rate(ctx->demux, &fps_rate, &fps_scale);
+    decode_get_frame_rate(ctx->common.demux_ctx, &fps_rate, &fps_scale);
     DBG_I("FPS: rate = %d scale = %d\n", fps_rate, fps_scale);
 
     if (fps_rate > 0 && fps_scale > 0)
@@ -357,20 +356,20 @@ static ret_code_t raspi_init(video_player_h h)
     DBG_I("Video buffers: size=%d amount=%d alligment=%d\n",port_param.nBufferSize, port_param.nBufferCountActual,
         port_param.nBufferAlignment);
 
-    if (decode_setup_video_buffers(ctx->demux, port_param.nBufferCountActual, port_param.nBufferAlignment,
+    if (decode_setup_video_buffers(ctx->common.demux_ctx, port_param.nBufferCountActual, port_param.nBufferAlignment,
         port_param.nBufferSize) != L_OK)
     {
         DBG_E("Unable to allocate video buffers\n");
         goto Error;
     }
-    if (decode_get_video_buffs_info(ctx->demux, (int *)&port_param.nBufferSize, (int *)&port_param.nBufferCountActual,
-        (int *)&port_param.nBufferAlignment))
+    if (decode_get_video_buffs_info(ctx->common.demux_ctx, (int *)&port_param.nBufferSize,
+        (int *)&port_param.nBufferCountActual,(int *)&port_param.nBufferAlignment))
     {
         goto Error;
     }
     port_param.nPortIndex = IL_VIDEO_DECODER_IN_PORT;
 
-    devode_get_video_size(ctx->demux, &width, &height);
+    devode_get_video_size(ctx->common.demux_ctx, &width, &height);
 
     DBG_I("Image size = %dx%d\n", width, height);
 
@@ -386,7 +385,7 @@ static ret_code_t raspi_init(video_player_h h)
     if (ilcore_set_param(ctx->decoder, OMX_IndexParamBrcmVideoDecodeErrorConcealment, &concan))
         goto Error;
 
-    extradata = decode_get_codec_extra_data(ctx->demux, &extrasize);
+    extradata = decode_get_codec_extra_data(ctx->common.demux_ctx, &extrasize);
 
     /* TODO. Not shure */
     //if (codec_id == AV_CODEC_ID_H264)
@@ -440,7 +439,7 @@ static ret_code_t raspi_init(video_player_h h)
     {
         OMX_BUFFERHEADERTYPE *hdr;
 
-        buffers[i] = decode_get_free_video_buffer(ctx->demux);
+        buffers[i] = decode_get_free_video_buffer(ctx->common.demux_ctx);
         if (!buffers[i])
         {
             DBG_E("Can not get demuxer buffer #%d\n", i);
@@ -464,7 +463,7 @@ static ret_code_t raspi_init(video_player_h h)
     }
 
     for (i = 0; i < port_param.nBufferCountActual; i++)
-        decode_release_video_buffer(ctx->demux, buffers[i]);
+        decode_release_video_buffer(ctx->common.demux_ctx, buffers[i]);
 
     /*****************/
     DBG_I("Buffers setup done\n");
@@ -488,7 +487,7 @@ static ret_code_t raspi_init(video_player_h h)
 
         DBG_I("Config codec\n");
 
-        buff = decode_get_free_video_buffer(ctx->demux);
+        buff = decode_get_free_video_buffer(ctx->common.demux_ctx);
         if (!buff)
             goto Error;
 
@@ -514,8 +513,8 @@ static ret_code_t raspi_init(video_player_h h)
     //omx_clock_state_execute(ctx->clock);
 
     DBG_I("Video player sucsessfuly initialized !\n");
-    decode_start_read(ctx->demux);
-    video_player_pause_toggle(ctx->parent);
+    decode_start_read(ctx->common.demux_ctx);
+    video_player_pause_toggle(ctx);
 
     ilcore_set_eos_callback(ctx->render, eof_callback, ctx);
 
@@ -543,7 +542,7 @@ static ret_code_t raspi_draw_frame(video_player_h h, media_buffer_t *buff)
     hdr->nFlags = 0;
     hdr->nOffset = 0;
 
-    decode_set_current_playing_pts(ctx->demux, buff->pts_ms);
+    decode_set_current_playing_pts(ctx->common.demux_ctx, buff->pts_ms);
 
     if (buff->pts_ms == AV_NOPTS_VALUE && buff->dts_ms == AV_NOPTS_VALUE)
     {
@@ -634,15 +633,32 @@ static void raspi_idle(video_player_h ctx)
     usleep(1000);
 }
 
-ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, ilcore_comp_h clock)
+static int raspi_pause_toggle(video_player_h h)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (!ctx)
+        return 0;
+
+    if (ctx->common.state == PLAYER_PAUSE)
+        ctx->common.state = PLAYER_PLAY;
+    else
+        ctx->common.state = PLAYER_PAUSE;
+
+    return (ctx->common.state == PLAYER_PAUSE);
+}
+
+static ret_code_t raspi_seek(video_player_h h, seek_direction_t dir, int32_t seek)
+{
+    return L_OK;
+}
+
+ret_code_t video_player_start(video_player_h *player_ctx, demux_ctx_h h, ilcore_comp_h clock)
 {
     player_ctx_t *ctx;
     pthread_attr_t attr;
     struct sched_param param;
     ret_code_t rc = L_OK;
-
-    memset(player_ctx, 0, sizeof(video_player_context));
-    player_ctx->demux_ctx = h;
 
     ctx = (player_ctx_t *)malloc(sizeof(player_ctx_t));
     if (!ctx)
@@ -652,26 +668,28 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, i
     }
 
     memset(ctx, 0, sizeof(player_ctx_t));
-    ctx->demux = h;
+    ctx->common.demux_ctx = h;
     ctx->clock = clock;
-    ctx->parent = player_ctx;
-    player_ctx->priv = ctx;
 
-    player_ctx->init = raspi_init;
-    player_ctx->uninit = raspi_uninit;
-    player_ctx->draw_frame = raspi_draw_frame;
-    player_ctx->idle = raspi_idle;
+    ctx->common.init = raspi_init;
+    ctx->common.uninit = raspi_uninit;
+    ctx->common.draw_frame = raspi_draw_frame;
+    ctx->common.idle = raspi_idle;
+    ctx->common.pause = raspi_pause_toggle;
+    ctx->common.seek = raspi_seek;
 
     /* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
     pthread_attr_init(&attr);
     param.sched_priority = 2;
     pthread_attr_setschedparam(&attr, &param);
-    if (pthread_create(&player_ctx->task, &attr, player_main_routine, player_ctx))
+    if (pthread_create(&ctx->common.task, &attr, player_main_routine, ctx))
     {
         DBG_E("Create thread falled\n");
         rc = L_FAILED;
     }
     pthread_attr_destroy(&attr);
+
+    *player_ctx = ctx;
 
     return rc;
 }
