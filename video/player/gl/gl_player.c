@@ -73,6 +73,8 @@ static GLfloat vertices[] = {
 };
 
 typedef struct {
+    video_player_common_ctx_t common;
+
     int width, height;
 
 #ifdef CONFIG_GL_TEXT_RENDERER
@@ -94,8 +96,6 @@ typedef struct {
 
     GLuint tex_frame;
     int win;
-
-    demux_ctx_h demux;
 } player_ctx_t;
 
 static int gl_flush_buffers(void)
@@ -380,10 +380,13 @@ static ret_code_t gl_init(video_player_h h)
     glGenTextures(1, &ctx->tex_subs);
 #endif
     
-    if (decode_setup_video_buffers(ctx->demux, VIDEO_BUFFERS, 1, 80 * 1024) != L_OK)
+    if (decode_setup_video_buffers(ctx->common.demux_ctx, VIDEO_BUFFERS, 1, 80 * 1024) != L_OK)
         return L_FAILED;
 
-    decode_start_read(ctx->demux);
+    ctx->common.first_pkt = 1;
+    msleep_init(&ctx->common.sched);
+
+    decode_start_read(ctx->common.demux_ctx);
 
     return L_OK;
 }
@@ -391,6 +394,8 @@ static ret_code_t gl_init(video_player_h h)
 static void gl_uninit(video_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
+
+    msleep_uninit(ctx->common.sched);
 
     glDeleteTextures(1, &ctx->tex_frame);
 #ifdef CONFIG_GL_TEXT_RENDERER
@@ -438,7 +443,7 @@ static ret_code_t gl_draw_frame(video_player_h h, media_buffer_t *buff)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
 
-    decode_set_current_playing_pts(ctx->demux, buff->pts_ms);
+    decode_set_current_playing_pts(ctx->common.demux_ctx, buff->pts_ms);
 
     gl_set_viewport(ctx);
       
@@ -474,6 +479,8 @@ static ret_code_t gl_draw_frame(video_player_h h, media_buffer_t *buff)
 
     glDisable(GL_TEXTURE_2D);
 
+    decode_release_video_buffer(ctx->common.demux_ctx, buff);
+
     return L_OK;
 }
 
@@ -482,7 +489,78 @@ static void gl_idle(video_player_h h)
     glutMainLoopEvent();
 }
 
-ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, void *clock)
+static int gl_pause_toggle(video_player_h h)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (!ctx)
+        return 0;
+
+    if (ctx->common.state == PLAYER_PAUSE)
+    {
+        struct timespec end_pause;
+        uint32_t diff;
+
+        ctx->common.state = PLAYER_PLAY;
+        clock_gettime(CLOCK_MONOTONIC, &end_pause);
+        diff = util_time_diff(&end_pause, &ctx->common.start_pause);
+        util_time_add(&ctx->common.base_time, diff);
+    }
+    else
+    {
+        ctx->common.state = PLAYER_PAUSE;
+        clock_gettime(CLOCK_MONOTONIC, &ctx->common.start_pause);
+    }
+
+    return (ctx->common.state == PLAYER_PAUSE);
+}
+
+static ret_code_t gl_seek(video_player_h h, seek_direction_t dir, int32_t seek)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (dir == L_SEEK_FORWARD)
+        util_time_sub(&ctx->common.base_time, seek);
+    else if (dir == L_SEEK_BACKWARD)
+        util_time_add(&ctx->common.base_time, seek);
+
+    return L_OK;
+}
+
+static ret_code_t gl_schedule(video_player_h h, media_buffer_t *buf)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (ctx->common.first_pkt)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &ctx->common.base_time);
+        ctx->common.first_pkt = 0;
+    }
+    else if (buf->pts_ms != AV_NOPTS_VALUE)
+    {
+        struct timespec curr_time;
+        int diff;
+
+        clock_gettime(CLOCK_MONOTONIC, &curr_time);
+        diff = util_time_diff(&curr_time, &ctx->common.base_time);
+        DBG_V("Current PTS=%lld time diff=%d\n", buf->pts_ms, diff);
+        if (diff > 0 && buf->pts_ms > diff)
+        {
+            diff = buf->pts_ms - diff;
+            if (diff > 5000)
+            {
+                DBG_W("The frame requests %d msec wait. Drop it and continue\n", diff);
+                decode_release_video_buffer(ctx->common.demux_ctx, buf);
+                return L_FAILED;
+            }
+            DBG_V("Going to sleep for %d ms\n", diff);
+            msleep_wait(ctx->common.sched, diff);
+        }
+    }
+    return L_OK;
+}
+
+ret_code_t video_player_start(video_player_h *player_ctx, demux_ctx_h h, void *clock)
 {
     player_ctx_t *ctx;
     ret_code_t rc = L_OK;
@@ -490,18 +568,14 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
     pthread_attr_t attr;
     struct sched_param param;
 
-    memset(player_ctx, 0, sizeof(video_player_context));
-    player_ctx->demux_ctx = h;
-
     ctx = (player_ctx_t *)malloc(sizeof(player_ctx_t));
     if (!ctx)
     {
         DBG_E("Memory allocation failed\n");
         return L_FAILED;
     }
-
     memset(ctx, 0, sizeof(player_ctx_t));
-    player_ctx->priv = ctx;
+    ctx->common.demux_ctx = h;
 
     if (devode_get_video_size(h, &width, &height))
     {
@@ -511,23 +585,27 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
 
     ctx->width = width;
     ctx->height = height;
-    ctx->demux = h;
 
-    player_ctx->init = gl_init;
-    player_ctx->uninit = gl_uninit;
-    player_ctx->draw_frame = gl_draw_frame;
-    player_ctx->idle = gl_idle;
+    ctx->common.init = gl_init;
+    ctx->common.uninit = gl_uninit;
+    ctx->common.draw_frame = gl_draw_frame;
+    ctx->common.idle = gl_idle;
+    ctx->common.pause = gl_pause_toggle;
+    ctx->common.seek = gl_seek;
+    ctx->common.schedule = gl_schedule;
 
     /* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
     pthread_attr_init(&attr);
     param.sched_priority = 2;
     pthread_attr_setschedparam(&attr, &param);
-    if (pthread_create(&player_ctx->task, &attr, player_main_routine, player_ctx))
+    if (pthread_create(&ctx->common.task, &attr, player_main_routine, ctx))
     {
         DBG_E("Create thread falled\n");
         rc = L_FAILED;
     }
     pthread_attr_destroy(&attr);
+
+    *player_ctx = ctx;
 
     return rc;
 }

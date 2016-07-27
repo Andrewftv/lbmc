@@ -237,6 +237,26 @@ static ret_code_t parse_command_line(int argc, char **argv, char **file, cmdline
     return L_OK;
 }
 
+static void stream_seek(audio_player_h ah, video_player_h vh, demux_ctx_h dh, seek_direction_t dir, int seek_sec)
+{
+    ret_code_t rc;
+
+    audio_player_lock(ah);
+    video_player_lock(vh);
+    decode_lock(dh);
+
+    rc = decode_seek(dh, dir, seek_sec * 1000, NULL);
+
+    decode_unlock(dh);
+    if (rc == L_OK)
+    {
+        audio_player_seek(ah, dir, seek_sec * 1000);
+        video_player_seek(vh, dir, seek_sec * 1000);
+    }
+    video_player_unlock(vh);
+    audio_player_unlock(ah);
+}
+
 int main(int argc, char **argv)
 {
     demux_ctx_h demux_ctx = NULL;
@@ -247,7 +267,6 @@ int main(int argc, char **argv)
     int is_pause = 0;
     int info_count = 0;
     cmdline_params_t params;
-    ret_code_t rc;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
     ilcore_comp_h clock = NULL;
@@ -259,7 +278,7 @@ int main(int argc, char **argv)
     void *clock = NULL;
 #endif
 #ifdef CONFIG_VIDEO
-    video_player_context vplayer_ctx;
+    video_player_h vplayer_ctx = NULL;
 #endif
 
     logs_init(NULL);
@@ -302,7 +321,7 @@ int main(int argc, char **argv)
     if (decode_is_video(demux_ctx))
         video_player_start(&vplayer_ctx, demux_ctx, clock);
     else
-        memset(&vplayer_ctx, 0, sizeof(video_player_context));
+        vplayer_ctx = NULL;
 #endif
     
     if (decode_start(demux_ctx))
@@ -326,7 +345,7 @@ int main(int argc, char **argv)
             case ' ':
 #ifdef CONFIG_VIDEO
                 if (decode_is_video(demux_ctx))
-                    is_pause = video_player_pause_toggle(&vplayer_ctx);
+                    is_pause = video_player_pause_toggle(vplayer_ctx);
 #endif
                 if (decode_is_audio(demux_ctx))
                     is_pause = audio_player_pause_toggle(aplayer_ctx);
@@ -371,33 +390,11 @@ int main(int argc, char **argv)
                 break;
             case 0x43:
                 DBG_I("Seek right 60 sec\n");
-                audio_player_lock(aplayer_ctx);
-                video_player_lock(&vplayer_ctx);
-                decode_lock(demux_ctx);
-                rc = decode_seek(demux_ctx, L_SEEK_FORWARD, 60 * 1000, NULL);
-                decode_unlock(demux_ctx);
-                if (rc == L_OK)
-                {
-                    audio_player_seek(aplayer_ctx, L_SEEK_FORWARD, 60 * 1000);
-                    video_player_seek(&vplayer_ctx, L_SEEK_FORWARD, 60 * 1000);
-                }
-                video_player_unlock(&vplayer_ctx);
-                audio_player_unlock(aplayer_ctx);
+                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_FORWARD, 60);
                 break;
             case 0x44:
                 DBG_I("Seek left 60 sec\n");
-                audio_player_lock(aplayer_ctx);
-                video_player_lock(&vplayer_ctx);
-                decode_lock(demux_ctx);
-                rc = decode_seek(demux_ctx, L_SEEK_BACKWARD, 60 * 1000, NULL);
-                decode_unlock(demux_ctx);
-                if (rc == L_OK)
-                {
-                    audio_player_seek(aplayer_ctx, L_SEEK_BACKWARD, 60 * 1000);
-                    video_player_seek(&vplayer_ctx, L_SEEK_BACKWARD, 60 * 1000);
-                }
-                video_player_unlock(&vplayer_ctx);
-                audio_player_unlock(aplayer_ctx);
+                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_BACKWARD, 60);
                 break;
             case 'a':
                 decode_next_audio_stream(demux_ctx);
@@ -486,7 +483,7 @@ end:
         gui_uninit(hgui);
         hdmi_uninit_display(&tv_state);
 #endif
-        video_player_stop(&vplayer_ctx, stop);
+        video_player_stop(vplayer_ctx, stop);
         DBG_I("Done\n");
     }
 #endif

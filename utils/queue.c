@@ -102,9 +102,8 @@ queue_err_t queue_push(queue_h h, queue_node_t *node)
         q->last_node = node;
     }
     q->count++;
-    pthread_mutex_unlock(&q->mutex);
-
     msleep_wakeup(q->wait);
+    pthread_mutex_unlock(&q->mutex);
 
     return QUE_OK;
 }

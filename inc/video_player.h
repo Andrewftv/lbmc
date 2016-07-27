@@ -42,8 +42,6 @@ typedef enum {
 } player_state_t;
 
 typedef struct {
-    video_player_h priv;
-
     pthread_t task;
     player_state_t state;
     int running;
@@ -64,21 +62,24 @@ typedef struct {
     void (*uninit)(video_player_h ctx);
     ret_code_t (*draw_frame)(video_player_h ctx, media_buffer_t *buff);
     void (*idle)(video_player_h ctx);
-} video_player_context;
+    int (*pause)(video_player_h ctx);
+    ret_code_t (*seek)(video_player_h h, seek_direction_t dir, int32_t seek);
+    ret_code_t (*schedule)(video_player_h h, media_buffer_t *buf);
+} video_player_common_ctx_t;
 
 void *player_main_routine(void *args);
 
-ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, void *clock);
-void video_player_stop(video_player_context *player_ctx, int stop);
-int video_player_pause_toggle(video_player_context *player_ctx);
-ret_code_t video_player_seek(video_player_context *ctx, seek_direction_t dir, int32_t seek);
+ret_code_t video_player_start(video_player_h *player_ctx, demux_ctx_h h, void *clock);
+void video_player_stop(video_player_h player_ctx, int stop);
+ret_code_t video_player_seek(video_player_h ctx, seek_direction_t dir, int32_t seek);
+int video_player_pause_toggle(video_player_h ctx);
 
 #ifdef CONFIG_RASPBERRY_PI
 ret_code_t hdmi_init_display(TV_DISPLAY_STATE_T *tv_state);
 void hdmi_uninit_display(TV_DISPLAY_STATE_T *tv_state);
 #endif
 
-void video_player_lock(video_player_context *ctx);
-void video_player_unlock(video_player_context *ctx);
+void video_player_lock(video_player_h ctx);
+void video_player_unlock(video_player_h ctx);
 
 #endif

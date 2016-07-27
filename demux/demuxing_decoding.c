@@ -47,9 +47,6 @@ typedef struct {
     struct AVCodecContext *codec;
     AVStream *st;
 
-    msleep_h empty_buff;
-    msleep_h full_buff;
-
     queue_h free_buff;
     queue_h fill_buff;
 
@@ -79,9 +76,6 @@ typedef struct {
 #endif
     AVStream *st;
     enum AVCodecID codec_id;
-
-    msleep_h empty_buff;
-    msleep_h full_buff;
 
     int width;
     int height;
@@ -204,7 +198,7 @@ ret_code_t decode_seek(demux_ctx_h h, seek_direction_t dir, int seek_time_ms, in
     case L_SEEK_BACKWARD:
         pts_ms -= seek_time_ms;
         if (pts_ms < 0)
-            pts_ms = 0;
+            return L_FAILED;
         break;
     default:
         DBG_E("Incorect seek direction\n");
@@ -220,45 +214,12 @@ ret_code_t decode_seek(demux_ctx_h h, seek_direction_t dir, int seek_time_ms, in
         DBG_E("av_seek_frame failed\n");
         return L_FAILED;
     }
-
-    /* Flush codecs buffers */
-    avcodec_flush_buffers(ctx->audio_ctx->codec);
-#ifndef CONFIG_VIDEO_HW_DECODE
-    avcodec_flush_buffers(ctx->video_ctx->codec);
-#endif
-    /* Flash all filled buffers */
     release_all_buffers(ctx);
 
     if (next_pts)
         *next_pts = pts_ms;
 
     return L_OK;
-}
-
-static ret_code_t timedwait_buffer(msleep_h h, int timeout)
-{
-    ret_code_t rc;
-
-    switch (msleep_wait(h, timeout))
-    {
-    case MSLEEP_INTERRUPT:
-        rc = L_OK;
-        break;
-    case MSLEEP_TIMEOUT:
-        rc = L_TIMEOUT;
-        break;
-    case MSLEEP_ERROR:
-    default:
-        rc = L_FAILED;
-        break;
-    }
-
-    return rc;
-}
-
-static void signal_buffer(msleep_h h)
-{
-    msleep_wakeup(h);
 }
 
 static int get_audio_streams_count(AVFormatContext *fmt)
@@ -601,8 +562,6 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
         }
        
         DBG_I("Video stream was found. index=%d\n", stream_index); 
-        msleep_init(&vctx->empty_buff);
-        msleep_init(&vctx->full_buff);
 
         if (!open_codec_context(&stream_index, ctx->fmt_ctx, AVMEDIA_TYPE_SUBTITLE))
         {
@@ -647,9 +606,6 @@ ret_code_t decode_init(demux_ctx_h *h, char *src_file, int show_info)
         actx->audio_streams = get_audio_streams_count(ctx->fmt_ctx);
         DBG_I("Audio stream was found. Index = %d total %d\n", stream_index, actx->audio_streams);
 
-        msleep_init(&actx->empty_buff);
-        msleep_init(&actx->full_buff);
-
         if (resampling_config(actx, 0))
             return L_FAILED;
 
@@ -680,8 +636,6 @@ void decode_uninit(demux_ctx_h h)
     {
         app_audio_ctx_t *actx = ctx->audio_ctx;
 
-        msleep_uninit(actx->full_buff);
-        msleep_uninit(actx->empty_buff);
         /* Release allocated buffers */
         uninit_audio_buffers(actx);
         /* Release resampling context */
@@ -701,8 +655,6 @@ void decode_uninit(demux_ctx_h h)
         media_buffer_t *buff;
         app_video_ctx_t *vctx = ctx->video_ctx;
 
-        msleep_uninit(vctx->full_buff);
-        msleep_uninit(vctx->empty_buff);
 #ifdef CONFIG_VIDEO_HW_DECODE
         while ((buff = (media_buffer_t *)queue_pop(vctx->free_buff)) != NULL)
         {
@@ -772,7 +724,6 @@ void decode_release_audio_buffer(demux_ctx_h h, media_buffer_t *buff)
     }
 
     queue_push(ctx->audio_ctx->free_buff, (queue_node_t *)buff);
-    signal_buffer(ctx->audio_ctx->empty_buff);
 }
 
 #ifdef CONFIG_VIDEO
@@ -787,7 +738,6 @@ void decode_release_video_buffer(demux_ctx_h h, media_buffer_t *buff)
     }
 
     queue_push(ctx->video_ctx->free_buff, (queue_node_t *)buff);
-    signal_buffer(ctx->video_ctx->empty_buff);
 }
 #endif
 
@@ -982,12 +932,6 @@ void decode_stop(demux_ctx_h h)
     demux_ctx_t *ctx = (demux_ctx_t *)h;
 
     ctx->stop_decode = 1;
-    if (ctx->audio_ctx)
-        signal_buffer(ctx->audio_ctx->full_buff);
-#ifdef CONFIG_VIDEO
-    if (ctx->video_ctx)
-        signal_buffer(ctx->video_ctx->full_buff);
-#endif
 }
 
 static ret_code_t realloc_audio_buffer(media_buffer_t *buffer, enum AVSampleFormat dst_fmt)
@@ -1166,13 +1110,7 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
         frame->nb_samples, ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame)),
         av_frame_get_channels(frame));
 
-    buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-    if (!buff)
-    {
-        timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
-        buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-    }
-    
+    buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, INFINITE_WAIT);
     unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
 
     if(pkt->pts != AV_NOPTS_VALUE)
@@ -1205,7 +1143,6 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
     buff->size = (size_t)unpadded_linesize;
 
     queue_push(ctx->fill_buff, (queue_node_t *)buff);
-    signal_buffer(ctx->full_buff);
 
     return decoded;
 }
@@ -1288,12 +1225,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
     }
 
     *got_frame = 1;
-    buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-    if (!buff)
-    {
-        timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
-        buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-    }
+    buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, INFINITE_WAIT);
     if (pkt->size <= buff->s.video.buff_size)
     {
         /* TODO. Redesign with out memcpy */
@@ -1329,14 +1261,8 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
                     buff->dts_ms = AV_NOPTS_VALUE;
 
                 queue_push(ctx->fill_buff, (queue_node_t *)buff);
-                //signal_buffer(ctx->full_buff);
 
-                buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-                if (!buff)
-                {
-                    timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
-                    buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-                }
+                buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, INFINITE_WAIT);
             }
         } while (size);
     }
@@ -1355,7 +1281,6 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
         buff->dts_ms = AV_NOPTS_VALUE;
 
     queue_push(ctx->fill_buff, (queue_node_t *)buff);
-    signal_buffer(ctx->full_buff);
 
     return 0;
 }
@@ -1390,12 +1315,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
         av_ts2timestr(av_frame_get_best_effort_timestamp(frame), &ctx->st->time_base),
         ts2ms(&ctx->codec->time_base, av_frame_get_best_effort_timestamp(frame)));
 
-    buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-    if (!buff)
-    {
-        timedwait_buffer(ctx->empty_buff, INFINITE_WAIT);
-        buff = (media_buffer_t *)queue_pop(ctx->free_buff);
-    }
+    buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, INFINITE_WAIT);
 
     rc = sws_scale(ctx->sws, (const uint8_t * const*)frame->data, frame->linesize, 0, ctx->codec->height,
         buff->s.video.buffer, buff->s.video.linesize);
@@ -1411,7 +1331,6 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
         buff->pts_ms = AV_NOPTS_VALUE;
 
     queue_push(ctx->fill_buff, (queue_node_t *)buff);
-    signal_buffer(ctx->full_buff);
 
     return 0;
 }

@@ -28,32 +28,20 @@
 
 #include <libavutil/avutil.h>
 
-int video_player_pause_toggle(video_player_context *player_ctx)
+int video_player_pause_toggle(video_player_h h)
 {
-    if (!player_ctx)
+    video_player_common_ctx_t *ctx = (video_player_common_ctx_t *)h;
+
+    if (!ctx || !ctx->pause)
         return 0;
 
-    if (player_ctx->state == PLAYER_PAUSE)
-    {
-        struct timespec end_pause;
-        uint32_t diff;
-
-        player_ctx->state = PLAYER_PLAY;
-        clock_gettime(CLOCK_MONOTONIC, &end_pause);
-        diff = util_time_diff(&end_pause, &player_ctx->start_pause);
-        util_time_add(&player_ctx->base_time, diff);
-    }
-    else
-    {
-        player_ctx->state = PLAYER_PAUSE;
-        clock_gettime(CLOCK_MONOTONIC, &player_ctx->start_pause);
-    }
-
-    return (player_ctx->state == PLAYER_PAUSE);
+    return ctx->pause(h);
 }
 
-void video_player_lock(video_player_context *ctx)
+void video_player_lock(video_player_h h)
 {
+    video_player_common_ctx_t *ctx = (video_player_common_ctx_t *)h;
+
     if (!ctx)
     {
         DBG_E("Can not lock video player\n");
@@ -62,8 +50,10 @@ void video_player_lock(video_player_context *ctx)
     pthread_mutex_lock(&ctx->lock);
 }
 
-void video_player_unlock(video_player_context *ctx)
+void video_player_unlock(video_player_h h)
 {
+    video_player_common_ctx_t *ctx = (video_player_common_ctx_t *)h;
+
     if (!ctx)
     {
         DBG_E("Can not unlock video player\n");
@@ -72,71 +62,65 @@ void video_player_unlock(video_player_context *ctx)
     pthread_mutex_unlock(&ctx->lock);
 }
 
-ret_code_t video_player_seek(video_player_context *ctx, seek_direction_t dir, int32_t seek)
+ret_code_t video_player_seek(video_player_h h, seek_direction_t dir, int32_t seek)
 {
-    if (dir == L_SEEK_FORWARD)
-        util_time_sub(&ctx->base_time, seek);
-    else if (dir == L_SEEK_BACKWARD)
-        util_time_add(&ctx->base_time, seek);
+    video_player_common_ctx_t *ctx = (video_player_common_ctx_t *)h;
 
-    return L_OK;
+    if (!ctx || !ctx->seek)
+        return L_FAILED;
+
+    return ctx->seek(h, dir, seek);
 }
 
-void video_player_stop(video_player_context *player_ctx, int stop)
+void video_player_stop(video_player_h h, int stop)
 {
-    if (!player_ctx)
+    video_player_common_ctx_t *ctx = (video_player_common_ctx_t *)h;
+
+    if (!ctx)
         return;
 
-    player_ctx->stop = stop;
-    player_ctx->running = 0;
+    ctx->stop = stop;
+    ctx->running = 0;
 #ifndef CONFIG_RASPBERRY_PI
-    msleep_wakeup(player_ctx->sched);
+    if (ctx->running)
+        msleep_wakeup(ctx->sched);
 #endif
     
     /* Waiting for player task */
-    if (player_ctx->task)
-        pthread_join(player_ctx->task, NULL);
+    if (ctx->task)
+        pthread_join(ctx->task, NULL);
 
-#ifndef CONFIG_RASPBERRY_PI
-    msleep_uninit(player_ctx->sched);
-#endif
-
-    if (player_ctx->priv)
-        free(player_ctx->priv);
+    free(ctx);
 }
 
 void *player_main_routine(void *args)
 {
     media_buffer_t *buf;
     ret_code_t rc;
-    video_player_context *player_ctx = (video_player_context *)args;
+    video_player_common_ctx_t *ctx = (video_player_common_ctx_t *)args;
 
     DBG_I("Video player task started.\n");
 
-    if (player_ctx->init(player_ctx->priv))
+    if (ctx->init(ctx))
         return NULL;
 
-    pthread_mutex_init(&player_ctx->lock, NULL);
-    player_ctx->running = 1;
-#ifndef CONFIG_RASPBERRY_PI
-    player_ctx->first_pkt = 1;
-    msleep_init(&player_ctx->sched);
-#endif
+    pthread_mutex_init(&ctx->lock, NULL);
+    ctx->running = 1;
 
-    while(player_ctx->running)
+    while(ctx->running)
     {
-        if (!player_ctx->running)
+        if (!ctx->running)
             break;
 
-        if (player_ctx->state == PLAYER_PAUSE)
+        if (ctx->state == PLAYER_PAUSE)
         {
             usleep(100000);
             continue;
         }
 
-        video_player_lock(player_ctx);
-        buf = decode_get_next_video_buffer(player_ctx->demux_ctx, &rc);
-        video_player_unlock(player_ctx);
+        video_player_lock(ctx);
+        buf = decode_get_next_video_buffer(ctx->demux_ctx, &rc);
+        video_player_unlock(ctx);
         if (!buf)
         {
             if (rc == L_FAILED)
@@ -147,8 +131,8 @@ void *player_main_routine(void *args)
             else if (rc == L_TIMEOUT)
             {
                 DBG_I("Nothing to play\n");
-                if (player_ctx->idle)
-                    player_ctx->idle(player_ctx->priv);
+                if (ctx->idle)
+                    ctx->idle(ctx);
                 continue;
             }
             else if (rc == L_STOPPING)
@@ -161,45 +145,17 @@ void *player_main_routine(void *args)
                 break;
             }
         }
-#ifndef CONFIG_RASPBERRY_PI
-        if (player_ctx->first_pkt)
-        {
-            clock_gettime(CLOCK_MONOTONIC, &player_ctx->base_time);
-            player_ctx->first_pkt = 0;
-        }
-        else if (buf->pts_ms != AV_NOPTS_VALUE)
-        {
-            struct timespec curr_time;
-            int diff;
-
-            clock_gettime(CLOCK_MONOTONIC, &curr_time);
-            diff = util_time_diff(&curr_time, &player_ctx->base_time);
-            DBG_V("Current PTS=%lld time diff=%d\n", buf->pts_ms, diff);
-            if (diff > 0 && buf->pts_ms > diff)
-            {
-                diff = buf->pts_ms - diff;
-                if (diff > 5000)
-                {
-                    DBG_E("The frame requests %d msec wait. Drop it and continue\n", diff);
-                    decode_release_video_buffer(player_ctx->demux_ctx, buf);
-                    continue;
-                }
-                DBG_V("Going to sleep for %d ms\n", diff);
-                msleep_wait(player_ctx->sched, diff);
-            }
-        }
-#endif
-        player_ctx->draw_frame(player_ctx->priv, buf);
-
-#ifndef CONFIG_RASPBERRY_PI
-        decode_release_video_buffer(player_ctx->demux_ctx, buf);
-#endif
+        rc = L_OK;
+        if (ctx->schedule)
+            rc = ctx->schedule(ctx, buf);
+        if (rc == L_OK)
+            ctx->draw_frame(ctx, buf);
     }
 
-    player_ctx->running = 0;
+    ctx->running = 0;
 
-    pthread_mutex_destroy(&player_ctx->lock);
-    player_ctx->uninit(player_ctx->priv);
+    pthread_mutex_destroy(&ctx->lock);
+    ctx->uninit(ctx);
 
     DBG_I("Video player task finished.\n");
     return NULL;
