@@ -25,6 +25,7 @@
 
 #include <libavutil/avutil.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_opengl.h>
 
 #include "log.h"
 #include "decode.h"
@@ -32,6 +33,8 @@
 #include "timeutils.h"
 
 typedef struct {
+    video_player_common_ctx_t common;
+
     int width, height;
     enum AVPixelFormat pix_fmt;
 
@@ -39,12 +42,14 @@ typedef struct {
     SDL_Renderer *renderer;
     SDL_Texture *texture;
 
-    demux_ctx_h demux;
+    SDL_Rect vp_rect;
 } player_ctx_t;
 
 static void uninit_sdl(video_player_h h)
 {
     player_ctx_t *ctx = (player_ctx_t *)h;
+
+    msleep_uninit(ctx->common.sched);
 
     if (ctx->texture)
         SDL_DestroyTexture(ctx->texture);
@@ -65,16 +70,24 @@ static int init_sdl(video_player_h h)
         DBG_E("Unable SDL initialization\n");
         return -1;
     }
+
+    ctx->vp_rect.x = 0;
+    ctx->vp_rect.y = 0;
+    ctx->vp_rect.w = ctx->width;
+    ctx->vp_rect.h = ctx->height;
+
     DBG_I("Create window. size %dx%d\n", ctx->width, ctx->height);
     ctx->window = SDL_CreateWindow("SDL player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ctx->width,
-        ctx->height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+        ctx->height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
     if (!ctx->window)
     {
         DBG_E("Unable create SDL window\n");
         return -1;
     }
+    /* Set "best" scale quality */
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2");
 
-    ctx->renderer = SDL_CreateRenderer(ctx->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC );
+    ctx->renderer = SDL_CreateRenderer(ctx->window, -1, SDL_RENDERER_ACCELERATED);
     if (!ctx->renderer)
     {
         DBG_E("Unable to create renderer\n");
@@ -90,50 +103,68 @@ static int init_sdl(video_player_h h)
         return -1;
     }
 
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    if (decode_setup_video_buffers(ctx->common.demux_ctx, VIDEO_BUFFERS, 1, 80 * 1024) != L_OK)
+        return L_FAILED;
 
-    decode_start_read(ctx->demux);
+    ctx->common.first_pkt = 1;
+    msleep_init(&ctx->common.sched);
+
+    decode_start_read(ctx->common.demux_ctx);
 
     return 0;
 }
 
-static void event_sdl(player_ctx_t *ctx, SDL_Rect *rect, int *is_min)
+static void event_sdl(player_ctx_t *ctx, int *is_min)
 {
     SDL_Event event;
+    double x_scale, y_scale;
+    int w, h;
 
     while (SDL_PollEvent(&event))
     {
-        double x_scale, y_scale;
-
-        if(event.type != SDL_WINDOWEVENT)
-            continue;
-
-        switch (event.window.event)
+        switch (event.type)
         {
-        case SDL_WINDOWEVENT_MINIMIZED:
-            *is_min = 1;
-            break;
-        case SDL_WINDOWEVENT_MAXIMIZED:
-        case SDL_WINDOWEVENT_RESTORED:
-            *is_min = 0;
-            break;
-        case SDL_WINDOWEVENT_SIZE_CHANGED:
-            x_scale = (double)event.window.data1 / (double)ctx->width;
-            y_scale = (double)event.window.data2 / (double)ctx->height;
-            if (x_scale > y_scale)
+        case SDL_WINDOWEVENT:
+            switch (event.window.event)
             {
-                rect->w = y_scale * ctx->width;
-                rect->h = y_scale * ctx->height;
-                rect->x = (event.window.data1 - rect->w) / 2;
-                rect->y = 0;
+            case SDL_WINDOWEVENT_MINIMIZED:
+                *is_min = 1;
+                break;
+            case SDL_WINDOWEVENT_MAXIMIZED:
+            case SDL_WINDOWEVENT_RESTORED:
+                *is_min = 0;
+                break;
+            case SDL_WINDOWEVENT_SIZE_CHANGED:
+                w = event.window.data1;
+                h = event.window.data2;
+                x_scale = (double)w / (double)ctx->width;
+                y_scale = (double)h / (double)ctx->height;
+                if (x_scale > y_scale)
+                {
+                    ctx->vp_rect.w = y_scale * ctx->width;
+                    ctx->vp_rect.h = y_scale * ctx->height;
+                    ctx->vp_rect.x = (w - ctx->vp_rect.w) / 2;
+                    ctx->vp_rect.y = 0;
+                }
+                else
+                {
+                    ctx->vp_rect.w = x_scale * ctx->width;
+                    ctx->vp_rect.h = x_scale * ctx->height;
+                    ctx->vp_rect.x = 0;
+                    ctx->vp_rect.y = (h - ctx->vp_rect.h) / 2;
+                }
+                break;
+            default:
+                break;
             }
-            else
-            {
-                rect->w = x_scale * ctx->width;
-                rect->h = x_scale * ctx->height;
-                rect->x = 0;
-                rect->y = (event.window.data2 - rect->h) / 2;
-            }
+            break;
+        case SDL_KEYDOWN:
+            break;
+        case SDL_KEYUP:
+            if (event.key.keysym.scancode == SDL_SCANCODE_F)
+                SDL_SetWindowFullscreen(ctx->window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+            else if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
+                SDL_SetWindowFullscreen(ctx->window, 0);
             break;
         default:
             break;
@@ -141,38 +172,102 @@ static void event_sdl(player_ctx_t *ctx, SDL_Rect *rect, int *is_min)
     }
 }
 
-static int draw_frame_sdl(video_player_h h, video_buffer_t *buf)
+static int draw_frame_sdl(video_player_h h, media_buffer_t *buf)
 {
-    SDL_Rect dst_rect;
     int win_minimized = 0;
     player_ctx_t *ctx = (player_ctx_t *)h;
 
-    dst_rect.x = 0;
-    dst_rect.y = 0;
-    dst_rect.w = ctx->width;
-    dst_rect.h = ctx->height;
-
-    event_sdl(ctx, &dst_rect, &win_minimized);
+    event_sdl(ctx, &win_minimized);
     if (win_minimized)
         return 0;
 
-    SDL_UpdateTexture(ctx->texture, NULL, buf->buffer[0], ctx->width * 4);
+    SDL_UpdateTexture(ctx->texture, NULL, buf->s.video.buffer[0], ctx->width * 4);
     SDL_RenderClear(ctx->renderer);
-    SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, &dst_rect);
+    SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, &ctx->vp_rect);
     SDL_RenderPresent(ctx->renderer);
+
+    decode_release_video_buffer(ctx->common.demux_ctx, buf);
 
     return 0;
 }
 
-ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, void *clock)
+static ret_code_t seek_sdl(video_player_h h, seek_direction_t dir, int32_t seek)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (dir == L_SEEK_FORWARD)
+        util_time_sub(&ctx->common.base_time, seek);
+    else if (dir == L_SEEK_BACKWARD)
+        util_time_add(&ctx->common.base_time, seek);
+
+    return L_OK;
+}
+
+static ret_code_t schedule_sdl(video_player_h h, media_buffer_t *buf)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (ctx->common.first_pkt)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &ctx->common.base_time);
+        ctx->common.first_pkt = 0;
+    }
+    else if (buf->pts_ms != AV_NOPTS_VALUE)
+    {
+        struct timespec curr_time;
+        int diff;
+
+        clock_gettime(CLOCK_MONOTONIC, &curr_time);
+        diff = util_time_diff(&curr_time, &ctx->common.base_time);
+        DBG_V("Current PTS=%lld time diff=%d\n", buf->pts_ms, diff);
+        if (diff > 0 && buf->pts_ms > diff)
+        {
+            diff = buf->pts_ms - diff;
+            if (diff > 5000)
+            {
+                DBG_W("The frame requests %d msec wait. Drop it and continue\n", diff);
+                decode_release_video_buffer(ctx->common.demux_ctx, buf);
+                return L_FAILED;
+            }
+            DBG_V("Going to sleep for %d ms\n", diff);
+            msleep_wait(ctx->common.sched, diff);
+        }
+    }
+    return L_OK;
+}
+
+static int pause_toggle_sdl(video_player_h h)
+{
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    if (!ctx)
+        return 0;
+
+    if (ctx->common.state == PLAYER_PAUSE)
+    {
+        struct timespec end_pause;
+        uint32_t diff;
+
+        ctx->common.state = PLAYER_PLAY;
+        clock_gettime(CLOCK_MONOTONIC, &end_pause);
+        diff = util_time_diff(&end_pause, &ctx->common.start_pause);
+        util_time_add(&ctx->common.base_time, diff);
+    }
+    else
+    {
+        ctx->common.state = PLAYER_PAUSE;
+        clock_gettime(CLOCK_MONOTONIC, &ctx->common.start_pause);
+    }
+
+    return (ctx->common.state == PLAYER_PAUSE);
+}
+
+ret_code_t video_player_start(video_player_h *player_ctx, demux_ctx_h h, void *clock)
 {
     player_ctx_t *ctx;
     ret_code_t rc = L_OK;
     pthread_attr_t attr;
     struct sched_param param;
-
-    memset(player_ctx, 0, sizeof(video_player_context));
-    player_ctx->demux_ctx = h;
 
     ctx = (player_ctx_t *)malloc(sizeof(player_ctx_t));
     if (!ctx)
@@ -181,8 +276,7 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
         return L_FAILED;
     }
     memset(ctx, 0, sizeof(player_ctx_t));
-    ctx->demux = h;
-    player_ctx->priv = ctx;
+    ctx->common.demux_ctx = h;
 
     if (devode_get_video_size(h, &ctx->width, &ctx->height))
     {
@@ -196,20 +290,25 @@ ret_code_t video_player_start(video_player_context *player_ctx, demux_ctx_h h, v
         return L_FAILED;
     }
 
-    player_ctx->init = init_sdl;
-    player_ctx->uninit = uninit_sdl;
-    player_ctx->draw_frame = draw_frame_sdl;
+    ctx->common.init = init_sdl;
+    ctx->common.uninit = uninit_sdl;
+    ctx->common.draw_frame = draw_frame_sdl;
+    ctx->common.pause = pause_toggle_sdl;
+    ctx->common.seek = seek_sdl;
+    ctx->common.schedule = schedule_sdl;
 
     /* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
     pthread_attr_init(&attr);
     param.sched_priority = 2;
     pthread_attr_setschedparam(&attr, &param);
-    if (pthread_create(&player_ctx->task, &attr, player_main_routine, player_ctx))
+    if (pthread_create(&ctx->common.task, &attr, player_main_routine, ctx))
     {
         DBG_E("Create thread falled\n");
         rc = L_FAILED;
     }
     pthread_attr_destroy(&attr);
+
+    *player_ctx = ctx;
 
     return rc;
 }
