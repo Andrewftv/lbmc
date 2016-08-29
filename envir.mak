@@ -27,7 +27,7 @@ endif
 ifdef CONFIG_PC
 LD:=ld
 CC:=gcc
-CXX:=gcc
+CXX:=g++
 OBJDUMP:=objdump
 RANLIB:=ranlib
 STRIP:=strip

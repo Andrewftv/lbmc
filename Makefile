@@ -41,8 +41,8 @@ $(SUBDIRS):
 	$(PREFIX)make -C $@
 
 $(TARGET): $(SUBDIRS) $(OBJS)
-	@echo "[LD ] " $(TARGET)
-	$(PREFIX)$(CXX) $(LDFLAGS) -o $(TARGET) -Wl,--start-group $(shell find $(OBJ_DIR) -name '*.a') \
+	@echo "[LINK] " $(TARGET)
+	$(PREFIX)$(CC) $(LDFLAGS) -o $(TARGET) -Wl,--start-group $(shell find $(OBJ_DIR) -name '*.a') \
 		$(shell find $(OBJ_DIR) -name '*.o') -Wl,--end-group
 
 config:
