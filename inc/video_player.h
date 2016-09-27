@@ -28,6 +28,7 @@
 #include "errors.h"
 #include "decode.h"
 #include "msleep.h"
+#include "control.h"
 
 /*
  * Video player interface.
@@ -55,8 +56,10 @@ typedef struct {
     struct timespec start_pause;
 
     pthread_mutex_t lock;
+    queue_h event_queue;
 
     demux_ctx_h demux_ctx;
+    control_ctx_h ctrl_ctx;
 
     ret_code_t (*init)(video_player_h ctx);
     void (*uninit)(video_player_h ctx);
@@ -73,6 +76,7 @@ ret_code_t video_player_start(video_player_h *player_ctx, demux_ctx_h h, void *c
 void video_player_stop(video_player_h player_ctx, int stop);
 ret_code_t video_player_seek(video_player_h ctx, seek_direction_t dir, int32_t seek);
 int video_player_pause_toggle(video_player_h ctx);
+ret_code_t video_player_set_control(video_player_h h, control_ctx_h ctrl);
 
 #ifdef CONFIG_RASPBERRY_PI
 ret_code_t hdmi_init_display(TV_DISPLAY_STATE_T *tv_state);

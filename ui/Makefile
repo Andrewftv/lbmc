@@ -1,7 +1,7 @@
 TOP_DIR=..
 include $(TOP_DIR)/envir.mak
 
-SRC:=
+SRC := control.c
 ifdef CONFIG_RASPBERRY_PI
 SRC += draw_prim.c init_gui.c image.c
 endif

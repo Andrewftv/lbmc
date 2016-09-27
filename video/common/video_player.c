@@ -25,6 +25,7 @@
 #include "decode.h"
 #include "video_player.h"
 #include "timeutils.h"
+#include "queue.h"
 
 #include <libavutil/avutil.h>
 
@@ -93,6 +94,21 @@ void video_player_stop(video_player_h h, int stop)
     free(ctx);
 }
 
+ret_code_t video_player_set_control(video_player_h h, control_ctx_h ctrl)
+{
+    video_player_common_ctx_t *ctx = (video_player_common_ctx_t *)h;
+
+    if (!ctx)
+    {
+        DBG_E("Incorrect context\n");
+        return L_FAILED;
+    }
+
+    ctx->ctrl_ctx = ctrl;
+
+    return L_OK;
+}
+
 void *player_main_routine(void *args)
 {
     media_buffer_t *buf;
@@ -104,6 +120,7 @@ void *player_main_routine(void *args)
     if (ctx->init(ctx))
         return NULL;
 
+    queue_init(&ctx->event_queue);
     pthread_mutex_init(&ctx->lock, NULL);
     ctx->running = 1;
 
@@ -114,6 +131,8 @@ void *player_main_routine(void *args)
 
         if (ctx->state == PLAYER_PAUSE)
         {
+            if (ctx->idle)
+                ctx->idle(ctx);
             usleep(100000);
             continue;
         }
@@ -155,6 +174,7 @@ void *player_main_routine(void *args)
     ctx->running = 0;
 
     pthread_mutex_destroy(&ctx->lock);
+    queue_uninit(ctx->event_queue);
     ctx->uninit(ctx);
 
     DBG_I("Video player task finished.\n");

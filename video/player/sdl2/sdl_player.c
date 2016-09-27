@@ -31,6 +31,7 @@
 #include "decode.h"
 #include "video_player.h"
 #include "timeutils.h"
+#include "control.h"
 
 typedef struct {
     video_player_common_ctx_t common;
@@ -44,6 +45,22 @@ typedef struct {
 
     SDL_Rect vp_rect;
 } player_ctx_t;
+
+static event_code_t get_event_callback(control_ctx_h h, uint32_t *data)
+{
+    player_ctx_t *ctx = (player_ctx_t *)control_get_user_data(h);
+    user_event_t *event;
+    event_code_t code = L_EVENT_NONE;
+    
+    event = (user_event_t *)queue_pop(ctx->common.event_queue);
+    if (event)
+    {
+        *data = event->data;
+        code = event->code;
+        free(event);
+    }
+    return code;
+}
 
 static void uninit_sdl(video_player_h h)
 {
@@ -75,6 +92,8 @@ static int init_sdl(video_player_h h)
     ctx->vp_rect.y = 0;
     ctx->vp_rect.w = ctx->width;
     ctx->vp_rect.h = ctx->height;
+
+    control_register_callback(ctx->common.ctrl_ctx, get_event_callback, ctx);
 
     DBG_I("Create window. size %dx%d\n", ctx->width, ctx->height);
     ctx->window = SDL_CreateWindow("SDL player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ctx->width,
@@ -119,6 +138,8 @@ static void event_sdl(player_ctx_t *ctx, int *is_min)
     SDL_Event event;
     double x_scale, y_scale;
     int w, h;
+    event_code_t code = L_EVENT_NONE;
+    uint32_t data = 0;
 
     while (SDL_PollEvent(&event))
     {
@@ -161,6 +182,47 @@ static void event_sdl(player_ctx_t *ctx, int *is_min)
         case SDL_KEYDOWN:
             break;
         case SDL_KEYUP:
+            switch (event.key.keysym.scancode)
+            {
+            case SDL_SCANCODE_Q:
+                code = L_EVENT_QUIT;
+                break;
+            case SDL_SCANCODE_SPACE:
+                code = L_EVENT_PAUSE;
+                break;
+            case SDL_SCANCODE_RIGHT:
+                code = L_EVENT_SEEK_RIGHT;
+                data = 60;
+                break;
+            case SDL_SCANCODE_LEFT:
+                code = L_EVENT_SEEK_LEFT;
+                data = 60;
+                break;
+            case SDL_SCANCODE_A:
+                code = L_EVENT_AUDIO_STREEM;
+                break;
+            case SDL_SCANCODE_M:
+                code = L_EVENT_MUTE;
+                break;
+            case SDL_SCANCODE_I:
+                code = L_EVENT_INFO;
+                break;
+            default:
+                break;
+            }
+            if (code != L_EVENT_NONE)
+            {
+                user_event_t *event;
+
+                event = (user_event_t *)malloc(sizeof(user_event_t));
+                if (event)
+                {
+                    event->code = code;
+                    event->data = data;
+                    queue_push(ctx->common.event_queue, (queue_node_t *)event);
+                }
+                break;
+            }
             if (event.key.keysym.scancode == SDL_SCANCODE_F)
                 SDL_SetWindowFullscreen(ctx->window, SDL_WINDOW_FULLSCREEN_DESKTOP);
             else if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
@@ -262,6 +324,18 @@ static int pause_toggle_sdl(video_player_h h)
     return (ctx->common.state == PLAYER_PAUSE);
 }
 
+static void idle_sdl(video_player_h h)
+{
+    int is_min;
+    player_ctx_t *ctx = (player_ctx_t *)h;
+
+    event_sdl(ctx, &is_min);
+
+    SDL_RenderClear(ctx->renderer);
+    SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, &ctx->vp_rect);
+    SDL_RenderPresent(ctx->renderer);
+}
+
 ret_code_t video_player_start(video_player_h *player_ctx, demux_ctx_h h, void *clock)
 {
     player_ctx_t *ctx;
@@ -296,6 +370,7 @@ ret_code_t video_player_start(video_player_h *player_ctx, demux_ctx_h h, void *c
     ctx->common.pause = pause_toggle_sdl;
     ctx->common.seek = seek_sdl;
     ctx->common.schedule = schedule_sdl;
+    ctx->common.idle = idle_sdl;
 
     /* Use default scheduler. Set SCHED_RR or SCHED_FIFO request root access */
     pthread_attr_init(&attr);

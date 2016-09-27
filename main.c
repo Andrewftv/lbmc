@@ -36,6 +36,7 @@
 #include "decode.h"
 #include "audio_player.h"
 #include "video_player.h"
+#include "control.h"
 
 #define CMDOPT_SHOW_INFO    "--show-info"
 #define CMDOPT_HELP         "--help"
@@ -86,6 +87,7 @@ static void set_conio_terminal_mode()
     tcsetattr(0, TCSANOW, &new_termios);
 }
 
+#if 0
 static int kbhit()
 {
     struct timeval tv = { 0L, 0L };
@@ -106,6 +108,7 @@ static int getch()
     else
         return ch;
 }
+#endif
 
 static void show_usage(void)
 {
@@ -267,6 +270,9 @@ int main(int argc, char **argv)
     int is_pause = 0;
     int info_count = 0;
     cmdline_params_t params;
+    control_ctx_h ctrl;
+    uint32_t event_data;
+    event_code_t event_code;
 #ifdef CONFIG_RASPBERRY_PI
     TV_DISPLAY_STATE_T tv_state;
     ilcore_comp_h clock = NULL;
@@ -315,13 +321,21 @@ int main(int argc, char **argv)
 
     omx_clock_hdmi_clock_sync(clock);
 #endif
+    if (control_init(&ctrl) != L_OK)
+        goto end;
+
     if (decode_is_audio(demux_ctx))
         audio_player_start(&aplayer_ctx, demux_ctx, clock);
 #ifdef CONFIG_VIDEO  
     if (decode_is_video(demux_ctx))
+    {
         video_player_start(&vplayer_ctx, demux_ctx, clock);
+        video_player_set_control(vplayer_ctx, ctrl);
+    }
     else
+    {
         vplayer_ctx = NULL;
+    }
 #endif
     
     if (decode_start(demux_ctx))
@@ -330,19 +344,16 @@ int main(int argc, char **argv)
     /* Main loop */
     while (decode_is_task_running(demux_ctx))
     {
-        if (kbhit())
+        if ((event_code = control_get_event(ctrl, &event_data)) != L_EVENT_NONE)
         {
-            uint16_t ch;
-
-            ch = getch();
-            switch(ch & 0xff)
+            switch(event_code)
             {
-            case 'q':
+            case L_EVENT_QUIT:
                 stop = 1;
                 decode_stop(demux_ctx);
                 usleep(100000);
                 break;
-            case ' ':
+            case L_EVENT_PAUSE:
 #ifdef CONFIG_VIDEO
                 if (decode_is_video(demux_ctx))
                     is_pause = video_player_pause_toggle(vplayer_ctx);
@@ -388,18 +399,18 @@ int main(int argc, char **argv)
                 }
 #endif
                 break;
-            case 0x43:
-                DBG_I("Seek right 60 sec\n");
-                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_FORWARD, 60);
+            case L_EVENT_SEEK_RIGHT:
+                DBG_I("Seek right %lu sec\n", event_data);
+                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_FORWARD, event_data);
                 break;
-            case 0x44:
-                DBG_I("Seek left 60 sec\n");
-                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_BACKWARD, 60);
+            case L_EVENT_SEEK_LEFT:
+                DBG_I("Seek left %lu sec\n", event_data);
+                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_BACKWARD, event_data);
                 break;
-            case 'a':
+            case L_EVENT_AUDIO_STREEM:
                 decode_next_audio_stream(demux_ctx);
                 break;
-            case 'm':
+            case L_EVENT_MUTE:
                 if (is_pause)
                     break;
 
@@ -431,7 +442,7 @@ int main(int argc, char **argv)
 #endif
                 break;
 #ifdef CONFIG_RASPBERRY_PI
-            case 'i':
+            case L_EVENT_INFO:
                 {
                     show_pic = !show_pic;
                     if (show_pic)
@@ -454,6 +465,8 @@ int main(int argc, char **argv)
                 }
                 break;
 #endif
+            default:
+                break;
             }
         }
         else
@@ -468,6 +481,7 @@ int main(int argc, char **argv)
 end:
     DBG_I("Leave main loop\n");
     show_console_cursore();
+    control_uninit(ctrl);
     release_all_buffers(demux_ctx);
     if (decode_is_audio(demux_ctx))
     {
