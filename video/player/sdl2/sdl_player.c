@@ -52,6 +52,9 @@ static event_code_t get_event_callback(control_ctx_h h, uint32_t *data)
     user_event_t *event;
     event_code_t code = L_EVENT_NONE;
     
+    if (!ctx->common.event_queue)
+        return L_EVENT_NONE;
+
     event = (user_event_t *)queue_pop(ctx->common.event_queue);
     if (event)
     {

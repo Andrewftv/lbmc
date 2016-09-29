@@ -350,6 +350,16 @@ int main(int argc, char **argv)
             {
             case L_EVENT_QUIT:
                 stop = 1;
+                if (is_pause)
+                {
+#ifdef CONFIG_VIDEO
+                    if (decode_is_video(demux_ctx))
+                        video_player_pause_toggle(vplayer_ctx);
+#endif
+                    if (decode_is_audio(demux_ctx))
+                        audio_player_pause_toggle(aplayer_ctx);
+                    usleep(100000);
+                }
                 decode_stop(demux_ctx);
                 usleep(100000);
                 break;
