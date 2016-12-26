@@ -120,10 +120,12 @@ int slist_add_head(list_h h, list_node_t *node)
 {
     list_t *ctx = (list_t *)h;
 
-    if (!ctx || !node)
-        return -1;
-
     pthread_mutex_lock(&ctx->mutex);
+    if (!ctx || !node)
+    {
+        pthread_mutex_unlock(&ctx->mutex);
+        return -1;
+    }
     add_head_priv(ctx, node);
     pthread_mutex_unlock(&ctx->mutex);
 
@@ -134,10 +136,12 @@ int slist_add_tail(list_h h, list_node_t *node)
 {
     list_t *ctx = (list_t *)h;
 
-    if (!ctx || !node)
-        return -1;
-
     pthread_mutex_lock(&ctx->mutex);
+    if (!ctx || !node)
+    {
+        pthread_mutex_unlock(&ctx->mutex);
+        return -1;
+    }
     if (!ctx->head)
     {
         add_head_priv(ctx, node);
@@ -155,10 +159,12 @@ list_node_t *slist_get_remove_head(list_h h)
     list_t *ctx = (list_t *)h;
     list_node_t *ret_node;
 
-    if (!ctx || !ctx->head)
-        return NULL;
-
     pthread_mutex_lock(&ctx->mutex);
+    if (!ctx || !ctx->head)
+    {
+        pthread_mutex_unlock(&ctx->mutex);
+        return NULL;
+    }
     ret_node = remove_head_priv(ctx);
     pthread_mutex_unlock(&ctx->mutex);
 
@@ -172,10 +178,12 @@ list_node_t *slist_get_remove_tail(list_h h)
     list_t *ctx = (list_t *)h;
     list_node_t *ret_node;
 
-    if (!ctx || !ctx->head)
-        return NULL;
-
     pthread_mutex_lock(&ctx->mutex);
+    if (!ctx || !ctx->head)
+    {
+        pthread_mutex_unlock(&ctx->mutex);
+        return NULL;
+    }
     ret_node = remove_tail_priv(ctx);
     pthread_mutex_unlock(&ctx->mutex);
 
