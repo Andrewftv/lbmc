@@ -16,16 +16,24 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef __LBMC_DEBUG_H__
-#define __LBMC_DEBUG_H__
+#ifndef __LBMC_TYPES_H__
+#define __LBMC_TYPES_H__
 
-#include <VG/openvg.h>
-#include "errors.h"
+#ifdef CONFIG_RASPBERRY_PI
+typedef VC_RECT_T l_rect_t;
+#else
+typedef struct {
+    int x;
+    int y;
+    int width;
+    int height;
+} l_rect_t;
+#endif
 
-ret_code_t img_init(img_h *h, image_type_t type, char *file);
-void img_uninit(img_h h);
-
-ret_code_t img_decode(img_h h, int width, int height);
-uint8_t *img_get_raw_buffer(img_h hctx, int *w, int *h, VGImageFormat *rgb);
+#ifdef CONFIG_RASPBERRY_PI
+typedef VG_INVALID_HANDLE L_INVALID_HANDLE;
+#else
+#define L_INVALID_HANDLE NULL
+#endif
 
 #endif

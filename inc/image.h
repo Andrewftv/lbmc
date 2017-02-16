@@ -16,16 +16,15 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef __LBMC_DEBUG_H__
-#define __LBMC_DEBUG_H__
+#ifndef __IMAGE_H__
+#define __IMAGE_H__
 
-#include <VG/openvg.h>
-#include "errors.h"
+typedef void* img_h;
 
-ret_code_t img_init(img_h *h, image_type_t type, char *file);
-void img_uninit(img_h h);
-
-ret_code_t img_decode(img_h h, int width, int height);
-uint8_t *img_get_raw_buffer(img_h hctx, int *w, int *h, VGImageFormat *rgb);
+typedef enum {
+    PNG_IMG_FILE,
+    JPEG_IMG_FILE,
+    UNKNOWN_IMG_FILE
+} image_type_t;
 
 #endif

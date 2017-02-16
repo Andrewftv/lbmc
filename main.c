@@ -87,29 +87,6 @@ static void set_conio_terminal_mode()
     tcsetattr(0, TCSANOW, &new_termios);
 }
 
-#if 0
-static int kbhit()
-{
-    struct timeval tv = { 0L, 0L };
-    fd_set fds;
-
-    FD_ZERO(&fds);
-    FD_SET(0, &fds);
-    return select(1, &fds, NULL, NULL, &tv);
-}
-
-static int getch()
-{
-    int rc;
-    uint16_t ch = 0;
-    
-    if ((rc = read(0, &ch, sizeof(ch))) < 0) 
-        return rc;
-    else
-        return ch;
-}
-#endif
-
 static void show_usage(void)
 {
     printf("Usage: lbmc <options> input_file\n");

@@ -36,7 +36,7 @@ typedef struct {
 
 	gui_h hgui;	
 
-	VC_RECT_T win_rect;
+	l_rect_t win_rect;
 } player_win_ctx_t;
 
 typedef struct {
@@ -292,7 +292,7 @@ int window_init(gui_h hgui, win_h *hwin,
 	int x, int y, int w, int h)
 {
 	DISPMANX_UPDATE_HANDLE_T dispman_update;
-	VC_RECT_T src_rect;
+	l_rect_t src_rect;
 	omx_player_gui_ctx_t *gui_ctx = (omx_player_gui_ctx_t *)hgui;
 	player_win_ctx_t *win_ctx;
 
@@ -356,14 +356,14 @@ FT_Library gui_get_ft_library(gui_h hgui)
 	return gui_ctx->ft_library;
 }
 
-int gui_get_window_rect(win_h hwin, VC_RECT_T *rect)
+int gui_get_window_rect(win_h hwin, l_rect_t *rect)
 {
 	player_win_ctx_t *win_ctx = (player_win_ctx_t *)hwin;
 
 	if (!hwin || !rect)
 		return -1;
 
-	memcpy(rect, &win_ctx->win_rect, sizeof(VC_RECT_T));
+	memcpy(rect, &win_ctx->win_rect, sizeof(l_rect_t));
 
 	return 0;
 }
@@ -377,7 +377,7 @@ gui_h gui_win_get_ui_handler(win_h hwin)
 
 void gui_win_clear_window(win_h hwin)
 {
-	VC_RECT_T win_rect;
+	l_rect_t win_rect;
 
 	gui_get_window_rect(hwin, &win_rect);
 

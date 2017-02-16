@@ -4,6 +4,10 @@ include $(TOP_DIR)/envir.mak
 SRC := control.c
 ifdef CONFIG_RASPBERRY_PI
 SRC += draw_prim.c init_gui.c image.c
+else
+ifdef CONFIG_LIBPNG
+SRC += image.c
+endif
 endif
 
 LIBA=libui.a

@@ -16,23 +16,226 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifdef CONFIG_RASPBERRY_PI
 #include <VG/openvg.h>
-
+#endif
 #include "errors.h"
+#include "image.h"
 #include "guiapi.h"
 #include "log.h"
+#ifdef CONFIG_RASPBERRY_PI
 #include "hw_img_decode.h"
+#elif CONFIG_LIBPNG
+#include <png.h>
+#endif
 
 typedef struct {
+#ifdef CONFIG_RASPBERRY_PI
     img_h img;
-
+    VGImageFormat rgb_format;
 	VGImage image;
+#elif CONFIG_LIBPNG
+    png_structp png_struct;
+    png_infop png_info;
+    int rgb_format;
+    uint8_t *image_data;
+    png_bytep *row_pointers;
+#endif
 	int width;
 	int height;
 	uint32_t depth;
-    VGImageFormat rgb_format;
 } image_ctx_t;
 
+int gui_image_get_width(image_h h)
+{
+	image_ctx_t *ctx = (image_ctx_t *)h;
+
+	if (!ctx
+#ifdef CONFIG_RASPBERRY_PI 
+            || ctx->image == L_INVALID_HANDLE
+#endif
+        )
+		return -1;
+
+	return ctx->width;
+}
+
+int gui_image_get_height(image_h h)
+{
+	image_ctx_t *ctx = (image_ctx_t *)h;
+
+	if (!ctx
+#ifdef CONFIG_RASPBERRY_PI 
+            || ctx->image == L_INVALID_HANDLE
+#endif
+        )
+		return -1;
+
+	return ctx->height;
+}
+
+int gui_image_get_depth(image_h h)
+{
+	image_ctx_t *ctx = (image_ctx_t *)h;
+	
+	if (!ctx 
+#ifdef CONFIG_RASPBERRY_PI
+            || ctx->image == L_INVALID_HANDLE
+#endif
+)
+		return -1;
+
+	return ctx->depth;
+}
+
+#if defined(CONFIG_PC) && defined(CONFIG_LIBPNG)
+static char *colortype2string(int rgb_format)
+{
+    switch (rgb_format)
+    {
+    case PNG_COLOR_TYPE_GRAY:
+        return "GRAY";
+    case PNG_COLOR_TYPE_GRAY_ALPHA:
+        return "GRAY_WITH_ALPHA";
+    case PNG_COLOR_TYPE_PALETTE:
+        return "PALETTE";
+    case PNG_COLOR_TYPE_RGB:
+        return "RGB";
+    case PNG_COLOR_TYPE_RGB_ALPHA:
+        return "RGBA";
+    case PNG_COLOR_MASK_PALETTE:
+        return "MASK_PALETTE";
+    }
+    return "UNKNOWN";
+}
+
+int gui_image_load(win_h hwin, char *image_path, int width, int height, image_h *h)
+{
+    FILE *fd;
+    png_byte header[8];
+    image_ctx_t *ctx = NULL;
+    int rowbytes, i;
+
+    fd = fopen(image_path, "rb");
+    if (!fd)
+    {
+        DBG_E("File %s not found\n", image_path);
+        return -1;
+    }
+
+    ctx = (image_ctx_t *)malloc(sizeof(image_ctx_t));
+	if (!ctx)
+	{
+		DBG_E("Memory allocation failed\n");
+		goto Error;
+	}
+    memset(ctx, 0, sizeof(image_ctx_t));
+    ctx->depth = 4; /* TODO */
+
+    fread(header, 1, 8, fd);
+
+    if (png_sig_cmp(header, 0, 8))
+    {
+        DBG_E("%s is not valid PNG file\n", image_path);
+        goto Error;
+    }
+
+    ctx->png_struct = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!ctx->png_struct)
+    {
+        DBG_E("Function png_create_read_struct failed\n");
+        goto Error;
+    }
+    ctx->png_info = png_create_info_struct(ctx->png_struct);
+    if (!ctx->png_info)
+    {
+        DBG_E("Function png_create_info_struct failed\n");
+        goto Error;
+    }
+    if (setjmp(png_jmpbuf(ctx->png_struct)))
+    {
+        DBG_E("Error from libpng\n");
+        goto Error;
+    }
+    png_init_io(ctx->png_struct, fd);
+    png_set_sig_bytes(ctx->png_struct, 8);
+    png_read_info(ctx->png_struct, ctx->png_info);
+
+    png_get_IHDR(ctx->png_struct, ctx->png_info, (uint32_t *)&ctx->width, (uint32_t *)&ctx->height, (int *)&ctx->depth,
+        &ctx->rgb_format, NULL, NULL, NULL);
+    DBG_I("PNG image info: size %dx%d depth: %d color type is %s\n", ctx->width, ctx->height, ctx->depth,
+        colortype2string(ctx->rgb_format));
+
+    png_read_update_info(ctx->png_struct, ctx->png_info);
+    rowbytes = png_get_rowbytes(ctx->png_struct, ctx->png_info);
+    rowbytes += 3 - ((rowbytes-1) % 4);
+    ctx->image_data = malloc(rowbytes * ctx->height * sizeof(uint8_t) + 15);
+    if (!ctx->image_data)
+    {
+        DBG_E("Memory allocation failed\n");
+        goto Error;
+    }
+    ctx->row_pointers = malloc(ctx->height * sizeof(png_bytep));
+    if (!ctx->row_pointers)
+    {
+        DBG_E("Memory allocation failed\n");
+        goto Error;
+    }
+
+    for (i = 0; i < ctx->height; i++)
+        ctx->row_pointers[ctx->height - 1 - i] = ctx->image_data + i * rowbytes;
+
+    png_read_image(ctx->png_struct, ctx->row_pointers);
+
+    fclose(fd);
+
+    *h = ctx;
+
+    return 0;
+
+Error:
+
+    gui_image_unload(hwin, ctx);
+    fclose(fd);
+    return -1;
+}
+
+void gui_image_unload(win_h hwin, image_h h)
+{
+    image_ctx_t *ctx = (image_ctx_t *)h;
+
+    DBG_I("Destroy PNG image\n");
+
+    if (!ctx)
+    {
+        DBG_W("Invalid context\n");
+        return;
+    }
+    png_destroy_read_struct(&ctx->png_struct, &ctx->png_info, NULL);
+    if (ctx->image_data)
+        free(ctx->image_data);
+    if (ctx->row_pointers)
+        free(ctx->row_pointers);
+    free(ctx);
+}
+
+uint8_t *gui_image_get_raw_buffer(image_h h)
+{
+    image_ctx_t *ctx = (image_ctx_t *)h;
+
+    if (!ctx)
+        return NULL;
+
+    return ctx->image_data;
+}
+
+int gui_image_draw(win_h hwin, image_h h, int x, int y, uint8_t alpha)
+{
+    return 0;
+}
+#endif
+
+#ifdef CONFIG_RASPBERRY_PI
 static image_type_t get_image_type(char *image_path)
 {
 	char *ext;
@@ -95,46 +298,16 @@ static uint8_t *get_uncompressed_buffer(image_ctx_t *ctx, char *image_path, int 
 	return buffer;
 }
 
-int gui_image_get_width(image_h h)
-{
-	image_ctx_t *ctx = (image_ctx_t *)h;
-
-	if (!ctx || ctx->image == VG_INVALID_HANDLE)
-		return -1;
-
-	return ctx->width;
-}
-
-int gui_image_get_height(image_h h)
-{
-	image_ctx_t *ctx = (image_ctx_t *)h;
-
-	if (!ctx || ctx->image == VG_INVALID_HANDLE)
-		return -1;
-
-	return ctx->height;
-}
-
-int gui_image_get_depth(image_h h)
-{
-	image_ctx_t *ctx = (image_ctx_t *)h;
-	
-	if (!ctx || ctx->image == VG_INVALID_HANDLE)
-		return -1;
-
-	return ctx->depth;
-}
-
 int gui_image_draw(win_h hwin, image_h h, int x, int y, uint8_t alpha)
 {
 	image_ctx_t *ctx = (image_ctx_t *)h;
 	VGfloat old_matrix[9];
-	VGPaint paint = VG_INVALID_HANDLE;
-	VC_RECT_T rect;
+	VGPaint paint = L_INVALID_HANDLE;
+	l_rect_t rect;
 	int rc = 0, err;
     VGfloat color[4] = { 1.0, 1.0, 1.0, (VGfloat)((VGfloat)alpha / (VGfloat)0xff) };
 
-	if (!ctx || ctx->image == VG_INVALID_HANDLE)
+	if (!ctx || ctx->image == L_INVALID_HANDLE)
 	{
 		DBG_E("Image has invalid handler\n");
 		return -1;
@@ -172,7 +345,7 @@ int gui_image_draw(win_h hwin, image_h h, int x, int y, uint8_t alpha)
 	vgLoadMatrix(old_matrix);
 
 Exit:
-	if (paint != VG_INVALID_HANDLE)
+	if (paint != L_INVALID_HANDLE)
 		vgDestroyPaint(paint);
 
 	gui_release_window(hwin);
@@ -191,11 +364,11 @@ int gui_image_load(win_h hwin, char *image_path, int width, int height, image_h 
 	ctx = (image_ctx_t *)malloc(sizeof(image_ctx_t));
 	if (!ctx)
 	{
-		DBG_E("%s: Memory allocation failed\n", __FUNCTION__);
+		DBG_E("Memory allocation failed\n");
 		return -1;
 	}
 	memset(ctx, 0, sizeof(image_ctx_t));
-	ctx->image = VG_INVALID_HANDLE;
+	ctx->image = L_INVALID_HANDLE;
     ctx->depth = 4; /* TODO */
 
 	buffer = get_uncompressed_buffer(ctx, image_path, width, height);
@@ -210,7 +383,7 @@ int gui_image_load(win_h hwin, char *image_path, int width, int height, image_h 
 	gui_activate_window(hwin);
 
 	ctx->image = vgCreateImage(rgba_format, ctx->width, ctx->height, VG_IMAGE_QUALITY_BETTER);
-	if (ctx->image != VG_INVALID_HANDLE)
+	if (ctx->image != L_INVALID_HANDLE)
 	{
 		vgImageSubData(ctx->image, buffer, pitch, rgba_format, 0, 0, ctx->width, ctx->height);
 	}
@@ -245,7 +418,7 @@ void gui_image_unload(win_h hwin, image_h h)
 
     img_uninit(ctx->img);
 
-	if (ctx->image != VG_INVALID_HANDLE)
+	if (ctx->image != L_INVALID_HANDLE)
 	{
 		gui_activate_window(hwin);
 		vgDestroyImage(ctx->image);
@@ -253,4 +426,5 @@ void gui_image_unload(win_h hwin, image_h h)
 	}
 	free(ctx);
 }
+#endif
 

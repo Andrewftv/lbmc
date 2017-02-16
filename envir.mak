@@ -69,6 +69,10 @@ ifdef CONFIG_SDL2_VIDEO
 LDFLAGS += -lSDL2
 endif
 
+ifdef CONFIG_LIBPNG
+LDFLAGS += -lpng
+endif
+
 OBJ_DIR=objs
 DEPFLAGS=-MM -MP -MT $(DEPFILE).o -MT $(DEPFILE).d
 

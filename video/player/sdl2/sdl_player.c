@@ -32,6 +32,7 @@
 #include "video_player.h"
 #include "timeutils.h"
 #include "control.h"
+#include "guiapi.h"
 
 typedef struct {
     video_player_common_ctx_t common;
@@ -42,6 +43,9 @@ typedef struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *texture;
+
+    image_h img_pause;
+    SDL_Texture *icon;
 
     SDL_Rect vp_rect;
 } player_ctx_t;
@@ -115,7 +119,7 @@ static int init_sdl(video_player_h h)
         DBG_E("Unable to create renderer\n");
         return -1;
     }
-    SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 0xff);
+    SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 0x80);
 
     ctx->texture = SDL_CreateTexture(ctx->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,  ctx->width,
         ctx->height);
@@ -124,6 +128,7 @@ static int init_sdl(video_player_h h)
         DBG_E("Unable to create texture\n");
         return -1;
     }
+    SDL_SetTextureBlendMode(ctx->texture, SDL_BLENDMODE_BLEND);
 
     if (decode_setup_video_buffers(ctx->common.demux_ctx, VIDEO_BUFFERS, 1, 80 * 1024) != L_OK)
         return L_FAILED;
@@ -317,11 +322,25 @@ static int pause_toggle_sdl(video_player_h h)
         clock_gettime(CLOCK_MONOTONIC, &end_pause);
         diff = util_time_diff(&end_pause, &ctx->common.start_pause);
         util_time_add(&ctx->common.base_time, diff);
+        if (ctx->icon)
+        {
+            SDL_DestroyTexture(ctx->icon);
+            ctx->icon = NULL;
+        }
+        if (ctx->img_pause)
+        {
+            gui_image_unload(NULL, ctx->img_pause);
+            ctx->img_pause = NULL;
+        }
     }
     else
     {
         ctx->common.state = PLAYER_PAUSE;
         clock_gettime(CLOCK_MONOTONIC, &ctx->common.start_pause);
+        gui_image_load(NULL, "/usr/share/images/pause.png", -1, -1, &ctx->img_pause);
+        ctx->icon = SDL_CreateTexture(ctx->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 128, 128);
+        SDL_SetTextureBlendMode(ctx->icon, SDL_BLENDMODE_BLEND);
+        SDL_UpdateTexture(ctx->icon, NULL, gui_image_get_raw_buffer(ctx->img_pause), 128 * 4);
     }
 
     return (ctx->common.state == PLAYER_PAUSE);
@@ -330,12 +349,23 @@ static int pause_toggle_sdl(video_player_h h)
 static void idle_sdl(video_player_h h)
 {
     int is_min;
+    SDL_Rect rect;
+    double scale = 1;
     player_ctx_t *ctx = (player_ctx_t *)h;
 
     event_sdl(ctx, &is_min);
 
     SDL_RenderClear(ctx->renderer);
     SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, &ctx->vp_rect);
+    if (ctx->icon)
+    {
+        scale = ctx->vp_rect.w / 1920.0;
+        rect.x = 1742 * scale;
+        rect.y = 50 * scale;
+        rect.w = 128 * scale;
+        rect.h = 128 * scale;
+        SDL_RenderCopy(ctx->renderer, ctx->icon, NULL, &rect);
+    }
     SDL_RenderPresent(ctx->renderer);
 }
 

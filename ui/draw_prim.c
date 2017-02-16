@@ -144,7 +144,7 @@ Exit:
 	return rc;
 } 
 
-int gui_draw_round_rect(win_h hwin, VC_RECT_T *rect, int arcw, int arch,
+int gui_draw_round_rect(win_h hwin, l_rect_t *rect, int arcw, int arch,
 	int filled, uint32_t color)
 {
 	VGPath path;
@@ -186,7 +186,7 @@ Exit:
 	return rc;
 }
 
-int gui_draw_rect(win_h hwin, VC_RECT_T *rect, uint32_t color, int filled)
+int gui_draw_rect(win_h hwin, l_rect_t *rect, uint32_t color, int filled)
 {
 	VGPath path;
 	VGPaint paint = 0;
