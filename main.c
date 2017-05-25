@@ -222,7 +222,9 @@ static void stream_seek(audio_player_h ah, video_player_h vh, demux_ctx_h dh, se
     ret_code_t rc;
 
     audio_player_lock(ah);
+#ifdef CONFIG_VIDEO
     video_player_lock(vh);
+#endif
     decode_lock(dh);
 
     rc = decode_seek(dh, dir, seek_sec * 1000, NULL);
@@ -231,9 +233,13 @@ static void stream_seek(audio_player_h ah, video_player_h vh, demux_ctx_h dh, se
     if (rc == L_OK)
     {
         audio_player_seek(ah, dir, seek_sec * 1000);
+#ifdef CONFIG_VIDEO
         video_player_seek(vh, dir, seek_sec * 1000);
+#endif
     }
+#ifdef CONFIG_VIDEO
     video_player_unlock(vh);
+#endif
     audio_player_unlock(ah);
 }
 
@@ -388,11 +394,23 @@ int main(int argc, char **argv)
                 break;
             case L_EVENT_SEEK_RIGHT:
                 DBG_I("Seek right %lu sec\n", event_data);
-                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_FORWARD, event_data);
+                stream_seek(aplayer_ctx,
+#ifdef CONFIG_VIDEO
+                    vplayer_ctx,
+#else
+                    NULL,
+#endif
+                    demux_ctx, L_SEEK_FORWARD, event_data);
                 break;
             case L_EVENT_SEEK_LEFT:
                 DBG_I("Seek left %lu sec\n", event_data);
-                stream_seek(aplayer_ctx, vplayer_ctx, demux_ctx, L_SEEK_BACKWARD, event_data);
+                stream_seek(aplayer_ctx,
+#ifdef CONFIG_VIDEO
+                    vplayer_ctx,
+#else
+                    NULL,
+#endif
+                    demux_ctx, L_SEEK_BACKWARD, event_data);
                 break;
             case L_EVENT_AUDIO_STREEM:
                 decode_next_audio_stream(demux_ctx);

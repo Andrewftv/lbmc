@@ -310,6 +310,7 @@ void decode_set_requested_buffers_param(demux_ctx_h h, media_buffer_type_t type,
         ctx->audio_ctx->size = size;
         ctx->audio_ctx->align = align;
         break;
+#ifdef CONFIG_VIDEO
     case MB_VIDEO_TYPE:
         if (!decode_is_video(h))
             break;
@@ -317,6 +318,7 @@ void decode_set_requested_buffers_param(demux_ctx_h h, media_buffer_type_t type,
         ctx->video_ctx->size = size;
         ctx->video_ctx->align = align;
         break;
+#endif
     default:
         break;
     }
@@ -897,6 +899,11 @@ int devode_get_video_size(demux_ctx_h hd, int *w, int *h)
     *w = ctx->video_ctx->width;
     *h = ctx->video_ctx->height;
 
+    return 0;
+}
+#else
+int decode_is_video(demux_ctx_h h)
+{
     return 0;
 }
 #endif
@@ -1499,6 +1506,7 @@ void print_stream_info(demux_ctx_h h)
     temp /= 60;
     hour = temp;
 
+#ifdef CONFIG_VIDEO
     if (ctx->video_ctx && ctx->audio_ctx)
     {
         fprintf(stderr, "V-%02d:%02d  A-%02d:%02d TS-%02d:%02d:%02d/%02d:%02d:%02d          \r",
@@ -1512,7 +1520,9 @@ void print_stream_info(demux_ctx_h h)
             queue_count(ctx->video_ctx->fill_buff), ctx->video_ctx->buff_allocated, curr_hour, curr_min, curr_sec, hour,
             min, sec);
     }
-    else if (ctx->audio_ctx)
+    else
+#endif
+    if (ctx->audio_ctx)
     {
         fprintf(stderr, "A-%02d:%02d TS-%02d:%02d:%02d/%02d:%02d:%02d          \r",
             queue_count(ctx->audio_ctx->fill_buff), ctx->audio_ctx->buff_allocated, curr_hour, curr_min, curr_sec, hour,

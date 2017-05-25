@@ -96,13 +96,13 @@ void release_all_buffers(demux_ctx_h h);
 void decode_set_requested_buffers_param(demux_ctx_h h, media_buffer_type_t type, int amount, int size, int align);
 
 int decode_is_audio(demux_ctx_h h);
+int decode_is_video(demux_ctx_h h);
 ret_code_t decode_next_audio_stream(demux_ctx_h h);
 
 #ifdef CONFIG_VIDEO
 media_buffer_t *decode_get_free_video_buffer(demux_ctx_h h);
 media_buffer_t *decode_get_next_video_buffer(demux_ctx_h h, ret_code_t *rc);
 void decode_release_video_buffer(demux_ctx_h h, media_buffer_t *buff);
-int decode_is_video(demux_ctx_h h);
 int devode_get_video_size(demux_ctx_h hd, int *w, int *h);
 ret_code_t decode_get_pixel_format(demux_ctx_h h, enum AVPixelFormat *pix_fmt);
 ret_code_t decode_get_codec_id(demux_ctx_h h, enum AVCodecID *codec_id);
