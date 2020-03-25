@@ -25,8 +25,9 @@ typedef void* msleep_h;
 
 #define INFINITE_WAIT   		(-1)
 
-#define MSLEEP_TIMEOUT          0
-#define MSLEEP_INTERRUPT        1
+#define MSLEEP_OK               0
+#define MSLEEP_TIMEOUT          1
+#define MSLEEP_INTERRUPT        2
 #define MSLEEP_ERROR            (-1)
 
 #ifdef __cplusplus
@@ -37,7 +38,9 @@ int msleep_init(msleep_h *h);
 void msleep_uninit(msleep_h h);
 int msleep_wait(msleep_h h, int timeout);
 int msleep_wakeup(msleep_h h);
+#ifndef CONFIG_FUTEX
 int msleep_wakeup_broadcast(msleep_h h);
+#endif
 
 #ifdef __cplusplus
 }

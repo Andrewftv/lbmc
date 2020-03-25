@@ -26,50 +26,137 @@
 #include <string.h>
 #include "msleep.h"
 #include "timeutils.h"
+
+#include <errno.h>
+#include <linux/futex.h>
+#include <syscall.h>
  
 typedef struct {
+#ifdef CONFIG_FUTEX
+    uint32_t lock;
+    int valid;
+#else
     pthread_mutex_t mutex;
     pthread_cond_t cond;
+#endif
 } msleep_ctx_t;
- 
+
+#ifdef CONFIG_FUTEX
+static int _futex(int *uaddr, int futex_op, int val,
+    const struct timespec *timeout, int *uaddr2, int val3)
+{
+    return syscall(SYS_futex, uaddr, futex_op, val, timeout, uaddr, val3);
+}
+
+static int _futex_wait(uint32_t *ft, int timeout)
+{
+    int rc = MSLEEP_ERROR;
+    struct timespec wait_time;
+    struct timespec *pwait_time;
+
+    if (timeout != INFINITE_WAIT)
+    {
+        wait_time.tv_sec = timeout / 1000;
+        wait_time.tv_nsec = timeout % 1000 * 1000000;
+
+        pwait_time = &wait_time;
+    }
+    else
+    {
+        pwait_time = NULL;
+    }
+
+    while (1)
+    {
+        if (__sync_bool_compare_and_swap(ft, 1, 0))
+            break;
+
+        if (_futex((int *)ft, FUTEX_WAIT, 0, pwait_time, NULL, 0) == -1)
+        {
+            if (errno == ETIMEDOUT)
+            {
+                __sync_bool_compare_and_swap(ft, 0, 1);
+                rc = MSLEEP_TIMEOUT;
+            }
+            else if (errno != EAGAIN)
+            {
+                rc = MSLEEP_ERROR;
+            }
+        }
+        else
+        {
+            rc = MSLEEP_INTERRUPT;
+        }
+    }
+
+    return rc;
+}
+
+static int _futex_wake(uint32_t *ft)
+{
+    int rc = MSLEEP_OK;
+    
+    if (__sync_bool_compare_and_swap(ft, 0, 1))
+        if( _futex((int *)ft, FUTEX_WAKE, 1, NULL, NULL, 0) == -1)
+            rc = MSLEEP_ERROR;
+
+    return rc;
+}
+#endif
+
 int msleep_init(msleep_h *h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)malloc(sizeof(msleep_ctx_t));
     if (!ctx)
-        return -1;
+        return MSLEEP_ERROR;
  
     memset(ctx, 0, sizeof(msleep_ctx_t));
 
+#ifdef CONFIG_FUTEX
+    ctx->lock = 0;
+    ctx->valid = 1;
+#else
     if (pthread_mutex_init(&ctx->mutex, NULL))
         goto Error;
  
     if (pthread_cond_init(&ctx->cond, NULL))
         goto Error;
+#endif
 
     *h = ctx;
  
-    return 0;
- 
+    return MSLEEP_OK;
+
+#ifndef CONFIG_FUTEX
 Error:
     msleep_uninit(ctx);
-    return -1;
+    return MSLEEP_ERROR;
+#endif
 }
  
 void msleep_uninit(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
 
+#ifndef CONFIG_FUTEX
     pthread_cond_destroy(&ctx->cond); 
     pthread_mutex_destroy(&ctx->mutex);
-    free(ctx);
+#endif
+    if (ctx)
+        free(ctx);
 }
  
 int msleep_wait(msleep_h h, int timeout)
 {
-    struct timespec endtime;
     int rc = MSLEEP_INTERRUPT;
- 
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
+#ifdef CONFIG_FUTEX
+    if (!ctx || !ctx->valid)
+        return MSLEEP_ERROR;
+
+    rc = _futex_wait(&ctx->lock, timeout);
+#else
+    struct timespec endtime;
  
     if (timeout == INFINITE_WAIT)
     {
@@ -87,6 +174,7 @@ int msleep_wait(msleep_h h, int timeout)
     if (pthread_cond_timedwait(&ctx->cond, &ctx->mutex, &endtime))
         rc = MSLEEP_TIMEOUT;
     pthread_mutex_unlock(&ctx->mutex);
+#endif
     
     return rc;
 }
@@ -94,14 +182,22 @@ int msleep_wait(msleep_h h, int timeout)
 int msleep_wakeup(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
+    int rc = MSLEEP_OK;
+#ifdef CONFIG_FUTEX
+    if (!ctx || !ctx->valid)
+        return MSLEEP_ERROR;
 
+    rc = _futex_wake(&ctx->lock);
+#else
     pthread_mutex_lock(&ctx->mutex);
     pthread_cond_signal(&ctx->cond);
     pthread_mutex_unlock(&ctx->mutex);
+#endif
 
-    return 0;
+    return rc;
 }
 
+#ifndef CONFIG_FUTEX
 int msleep_wakeup_broadcast(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
@@ -110,6 +206,7 @@ int msleep_wakeup_broadcast(msleep_h h)
     pthread_cond_broadcast(&ctx->cond);
     pthread_mutex_unlock(&ctx->mutex);
 
-    return 0;
+    return MSLEEP_OK;
 }
+#endif
 
