@@ -50,7 +50,7 @@ static int _futex(int *uaddr, int futex_op, int val,
 
 static int _futex_wait(uint32_t *ft, int timeout)
 {
-    int rc = MSLEEP_ERROR;
+    int rc = MSLEEP_INTERRUPT;
     struct timespec wait_time;
     struct timespec *pwait_time;
 
@@ -150,6 +150,7 @@ int msleep_wait(msleep_h h, int timeout)
 {
     int rc = MSLEEP_INTERRUPT;
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
+
 #ifdef CONFIG_FUTEX
     if (!ctx || !ctx->valid)
         return MSLEEP_ERROR;
@@ -175,7 +176,7 @@ int msleep_wait(msleep_h h, int timeout)
         rc = MSLEEP_TIMEOUT;
     pthread_mutex_unlock(&ctx->mutex);
 #endif
-    
+   
     return rc;
 }
  
@@ -183,6 +184,7 @@ int msleep_wakeup(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
     int rc = MSLEEP_OK;
+
 #ifdef CONFIG_FUTEX
     if (!ctx || !ctx->valid)
         return MSLEEP_ERROR;

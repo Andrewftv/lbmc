@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include "queue.h"
 #include "msleep.h"
+#include "log.h"
 
 typedef struct {
     queue_node_t *first_node;
@@ -108,17 +109,12 @@ queue_err_t queue_push(queue_h h, queue_node_t *node)
     return QUE_OK;
 }
 
-/* FIXME. Incorrect implementation */
 queue_node_t *queue_pop_timed(queue_h h, int timeout)
 {
-    queue_node_t *node;
     queue_t *q = (queue_t *)h;
 
-    node = queue_pop(h);
-    if (node)
-        return node;
-    
-    msleep_wait(q->wait, timeout);
+    if (msleep_wait(q->wait, timeout) == MSLEEP_TIMEOUT)
+        return NULL;
 
     return queue_pop(h);
 }
@@ -139,6 +135,8 @@ queue_node_t *queue_pop(queue_h h)
     if (!q->first_node)
         q->last_node = NULL;
     q->count--;
+    if (q->count)
+        msleep_wakeup(q->wait);
     pthread_mutex_unlock(&q->mutex);
 
     return node;
