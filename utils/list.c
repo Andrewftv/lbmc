@@ -46,7 +46,7 @@ static list_node_t *find_tail_priv(list_t *ctx)
 
     tail = ctx->head;
     while (tail->next)
-    tail = tail->next;
+        tail = tail->next;
 
     return tail;
 }

@@ -20,6 +20,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <semaphore.h>
+#include <errno.h>
+
 #include "queue.h"
 #include "msleep.h"
 #include "log.h"
@@ -28,10 +31,9 @@ typedef struct {
     queue_node_t *first_node;
     queue_node_t *last_node;
     pthread_mutex_t mutex;
-    int count;
-
-    msleep_h wait;
+    sem_t sem_count;
 } queue_t;
+
 
 static void destroy_queue(queue_t *q)
 {
@@ -60,7 +62,8 @@ queue_err_t queue_init(queue_h *h)
     if (pthread_mutex_init(&queue->mutex, NULL))
         goto Error;
 
-    msleep_init(&queue->wait);
+    if (sem_init(&queue->sem_count, 0, 0))
+        goto Error;
 
     *h = queue;
 
@@ -78,9 +81,9 @@ void queue_uninit(queue_h h)
     if (!queue)
         return;
     
-    msleep_uninit(queue->wait);
     destroy_queue(queue);
 
+    sem_destroy(&queue->sem_count);
     pthread_mutex_destroy(&queue->mutex);
     free(queue);
 }
@@ -102,8 +105,7 @@ queue_err_t queue_push(queue_h h, queue_node_t *node)
         q->last_node->next = node;
         q->last_node = node;
     }
-    q->count++;
-    msleep_wakeup(q->wait);
+    sem_post(&q->sem_count);
     pthread_mutex_unlock(&q->mutex);
 
     return QUE_OK;
@@ -112,11 +114,48 @@ queue_err_t queue_push(queue_h h, queue_node_t *node)
 queue_node_t *queue_pop_timed(queue_h h, int timeout)
 {
     queue_t *q = (queue_t *)h;
+    queue_node_t *node;
+    struct timespec wait_time;
 
-    if (msleep_wait(q->wait, timeout) == MSLEEP_TIMEOUT)
+    if (!timeout)
+        return queue_pop(h);
+
+    if (timeout != INFINITE_WAIT)
+    {
+        wait_time.tv_sec = timeout / 1000;
+        wait_time.tv_nsec = timeout % 1000 * 1000000;
+
+        if (sem_timedwait(&q->sem_count, &wait_time) == -1)
+        {
+            if (errno != ETIMEDOUT)
+            {
+                DBG_E("Function sem_timedwait failed\n");
+            }
+            return NULL;
+        }
+    }
+    else
+    {
+        sem_wait(&q->sem_count);
+    }
+
+    pthread_mutex_lock(&q->mutex);
+    if (!q->first_node)
+    {
+        pthread_mutex_unlock(&q->mutex);
+
+        DBG_E("Oops!!! Incorrect sityation\n");
+
         return NULL;
+    }
+    node = q->first_node;
+    q->first_node = node->next;
+    if (!q->first_node)
+        q->last_node = NULL;
 
-    return queue_pop(h);
+    pthread_mutex_unlock(&q->mutex);
+
+    return node;
 }
 
 queue_node_t *queue_pop(queue_h h)
@@ -131,12 +170,12 @@ queue_node_t *queue_pop(queue_h h)
         return NULL;
     }
     node = q->first_node;
+    /* Item found. Decrement the counter */
+    sem_wait(&q->sem_count); 
+
     q->first_node = node->next;
     if (!q->first_node)
         q->last_node = NULL;
-    q->count--;
-    if (q->count)
-        msleep_wakeup(q->wait);
     pthread_mutex_unlock(&q->mutex);
 
     return node;
@@ -148,7 +187,7 @@ int queue_count(queue_h h)
     queue_t *q = (queue_t *)h;
 
     pthread_mutex_lock(&q->mutex);
-    count = q->count;
+    sem_getvalue(&q->sem_count, &count);
     pthread_mutex_unlock(&q->mutex);
 
     return count;
