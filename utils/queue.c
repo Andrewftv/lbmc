@@ -26,6 +26,7 @@
 #include "queue.h"
 #include "msleep.h"
 #include "log.h"
+#include "timeutils.h"
 
 typedef struct {
     queue_node_t *first_node;
@@ -122,8 +123,8 @@ queue_node_t *queue_pop_timed(queue_h h, int timeout)
 
     if (timeout != INFINITE_WAIT)
     {
-        wait_time.tv_sec = timeout / 1000;
-        wait_time.tv_nsec = timeout % 1000 * 1000000;
+        clock_gettime(CLOCK_REALTIME, &wait_time);
+        util_time_add(&wait_time, timeout);
 
         if (sem_timedwait(&q->sem_count, &wait_time) == -1)
         {
