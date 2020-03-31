@@ -23,23 +23,25 @@
 
 typedef void* msleep_h;
 
-#define INFINITE_WAIT   		(-1)
+#define MSLEEP_INFINITE_WAIT    (-1)
 
-#define MSLEEP_OK               0
-#define MSLEEP_TIMEOUT          1
-#define MSLEEP_INTERRUPT        2
-#define MSLEEP_ERROR            (-1)
+typedef enum {
+    MSLEEP_OK = 0,
+    MSLEEP_TIMEOUT = 1,
+    MSLEEP_INTERRUPT = 2,
+    MSLEEP_ERROR = -1
+} msleep_err_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int msleep_init(msleep_h *h);
+msleep_err_t msleep_init(msleep_h *h);
 void msleep_uninit(msleep_h h);
-int msleep_wait(msleep_h h, int timeout);
-int msleep_wakeup(msleep_h h);
+msleep_err_t msleep_wait(msleep_h h, int timeout);
+msleep_err_t msleep_wakeup(msleep_h h);
 #ifndef CONFIG_FUTEX
-int msleep_wakeup_broadcast(msleep_h h);
+msleep_err_t msleep_wakeup_broadcast(msleep_h h);
 #endif
 
 #ifdef __cplusplus

@@ -48,13 +48,13 @@ static int _futex(int *uaddr, int futex_op, int val,
     return syscall(SYS_futex, uaddr, futex_op, val, timeout, uaddr, val3);
 }
 
-static int _futex_wait(uint32_t *ft, int timeout)
+static msleep_err_t _futex_wait(uint32_t *ft, int timeout)
 {
-    int rc = MSLEEP_INTERRUPT;
+    msleep_err_t rc = MSLEEP_INTERRUPT;
     struct timespec wait_time;
     struct timespec *pwait_time;
 
-    if (timeout != INFINITE_WAIT)
+    if (timeout != MSLEEP_INFINITE_WAIT)
     {
         wait_time.tv_sec = timeout / 1000;
         wait_time.tv_nsec = timeout % 1000 * 1000000;
@@ -92,9 +92,9 @@ static int _futex_wait(uint32_t *ft, int timeout)
     return rc;
 }
 
-static int _futex_wake(uint32_t *ft)
+static msleep_err_t _futex_wake(uint32_t *ft)
 {
-    int rc = MSLEEP_OK;
+    msleep_err_t rc = MSLEEP_OK;
     
     if (__sync_bool_compare_and_swap(ft, 0, 1))
         if( _futex((int *)ft, FUTEX_WAKE, 1, NULL, NULL, 0) == -1)
@@ -104,7 +104,7 @@ static int _futex_wake(uint32_t *ft)
 }
 #endif
 
-int msleep_init(msleep_h *h)
+msleep_err_t msleep_init(msleep_h *h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)malloc(sizeof(msleep_ctx_t));
     if (!ctx)
@@ -146,9 +146,9 @@ void msleep_uninit(msleep_h h)
         free(ctx);
 }
  
-int msleep_wait(msleep_h h, int timeout)
+msleep_err_t msleep_wait(msleep_h h, int timeout)
 {
-    int rc = MSLEEP_INTERRUPT;
+    msleep_err_t rc = MSLEEP_INTERRUPT;
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
 
 #ifdef CONFIG_FUTEX
@@ -159,7 +159,7 @@ int msleep_wait(msleep_h h, int timeout)
 #else
     struct timespec endtime;
  
-    if (timeout == INFINITE_WAIT)
+    if (timeout == MSLEEP_INFINITE_WAIT)
     {
         pthread_mutex_lock(&ctx->mutex);
         pthread_cond_wait(&ctx->cond, &ctx->mutex);
@@ -180,10 +180,10 @@ int msleep_wait(msleep_h h, int timeout)
     return rc;
 }
  
-int msleep_wakeup(msleep_h h)
+msleep_err_t msleep_wakeup(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
-    int rc = MSLEEP_OK;
+    msleep_err_t rc = MSLEEP_OK;
 
 #ifdef CONFIG_FUTEX
     if (!ctx || !ctx->valid)
@@ -200,7 +200,7 @@ int msleep_wakeup(msleep_h h)
 }
 
 #ifndef CONFIG_FUTEX
-int msleep_wakeup_broadcast(msleep_h h)
+msleep_err_t msleep_wakeup_broadcast(msleep_h h)
 {
     msleep_ctx_t *ctx = (msleep_ctx_t *)h;
 

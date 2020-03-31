@@ -24,7 +24,6 @@
 #include <errno.h>
 
 #include "queue.h"
-#include "msleep.h"
 #include "log.h"
 #include "timeutils.h"
 
@@ -121,7 +120,7 @@ queue_node_t *queue_pop_timed(queue_h h, int timeout)
     if (!timeout)
         return queue_pop(h);
 
-    if (timeout != INFINITE_WAIT)
+    if (timeout != QUEUE_INFINITE_WAIT)
     {
         clock_gettime(CLOCK_REALTIME, &wait_time);
         util_time_add(&wait_time, timeout);
@@ -145,7 +144,7 @@ queue_node_t *queue_pop_timed(queue_h h, int timeout)
     {
         pthread_mutex_unlock(&q->mutex);
 
-        DBG_E("Oops!!! Incorrect sityation\n");
+        DBG_E("Oops!!! Incorrect situation\n");
 
         return NULL;
     }

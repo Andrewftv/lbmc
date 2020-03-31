@@ -1117,7 +1117,7 @@ static int decode_audio_packet(int *got_frame, int cached, app_audio_ctx_t *ctx,
         frame->nb_samples, ts2ms(&ctx->st->time_base, av_frame_get_best_effort_timestamp(frame)),
         av_frame_get_channels(frame));
 
-    buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, INFINITE_WAIT);
+    buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, QUEUE_INFINITE_WAIT);
     unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
 
     if(pkt->pts != AV_NOPTS_VALUE)
@@ -1322,7 +1322,7 @@ static int decode_video_packet(int *got_frame, int cached, app_video_ctx_t *ctx,
         av_ts2timestr(av_frame_get_best_effort_timestamp(frame), &ctx->st->time_base),
         ts2ms(&ctx->codec->time_base, av_frame_get_best_effort_timestamp(frame)));
 
-    buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, INFINITE_WAIT);
+    buff = (media_buffer_t *)queue_pop_timed(ctx->free_buff, QUEUE_INFINITE_WAIT);
 
     rc = sws_scale(ctx->sws, (const uint8_t * const*)frame->data, frame->linesize, 0, ctx->codec->height,
         buff->s.video.buffer, buff->s.video.linesize);
@@ -1539,7 +1539,7 @@ static void *read_demux_data(void *args)
     demux_ctx_t *ctx = (demux_ctx_t *)args;
 
     DBG_I("Waiting\n");
-    msleep_wait(ctx->pause, INFINITE_WAIT);
+    msleep_wait(ctx->pause, MSLEEP_INFINITE_WAIT);
     DBG_I("Start demux task\n");
 
     frame = av_frame_alloc();

@@ -19,9 +19,7 @@
 #ifndef __OMX_QUEUE_H__
 #define __OMX_QUEUE_H__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define QUEUE_INFINITE_WAIT    (-1)
 
 typedef enum {
     QUE_OK = 0,
@@ -34,6 +32,10 @@ typedef void* queue_h;
 typedef struct queue_node_s {
     struct  queue_node_s *next;
 }  queue_node_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 queue_err_t queue_init(queue_h *h);
 void queue_uninit(queue_h h);
